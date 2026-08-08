@@ -1,0 +1,61 @@
+# This file is loaded by ClinicConfigService. Swap the file, swap the market —
+# the agents, gate and orchestrator never learn what vertical they're in.
+#
+# floor          the lowest total this clinic will EVER accept. Hidden from the
+#                negotiator, enforced in code on submit_quote, never in a prompt
+#                alone. An LLM told "don't go below X" will eventually go below X.
+# openingTotal   what they quote first, before any pressure
+# persona        shapes how the agent talks and whether it itemizes up front
+# concessionRate how much of the gap to a cited competing quote they'll close
+clinics:
+  - name: "Kawartha Imaging"
+    persona: STRAIGHT_SHOOTER
+    openingTotal: 495
+    floor: 395
+    concessionRate: 0.60
+    fees:
+      - label: "Radiology read"
+        amount: 95
+    itemizesUpFront: true
+
+  - name: "Peterborough Diagnostic Centre"
+    persona: LOWBALLER_HIDDEN_FEES
+    openingTotal: 380
+    floor: 340
+    concessionRate: 0.35
+    fees:
+      - label: "Facility fee"
+        amount: 120
+      - label: "Contrast administration"
+        amount: 75
+    itemizesUpFront: false
+
+  - name: "Lakeridge Medical Imaging"
+    persona: HARD_SELL_UPSELLER
+    openingTotal: 610
+    floor: 430
+    concessionRate: 0.70
+    fees:
+      - label: "Radiology read"
+        amount: 110
+      - label: "Same-week scheduling"
+        amount: 60
+    itemizesUpFront: true
+
+  - name: "Otonabee Health Scan"
+    persona: STONEWALLER
+    openingTotal: 0
+    floor: 0
+    concessionRate: 0.0
+    fees: []
+    itemizesUpFront: false
+
+  - name: "Trent Valley Radiology"
+    persona: STRAIGHT_SHOOTER
+    openingTotal: 460
+    floor: 410
+    concessionRate: 0.45
+    fees:
+      - label: "Radiology read"
+        amount: 85
+    itemizesUpFront: true
