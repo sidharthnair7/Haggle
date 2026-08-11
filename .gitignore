@@ -40,6 +40,11 @@ node_modules/
 dist/
 .vite/
 
+### Vendored component libraries — copy what you use into src/components/,
+### don't commit the upstream repo. (react-bits is MIT + Commons Clause;
+### keep the attribution in README, not 2,800 files of their repo.)
+frontend/temp_react_bits/
+
 ### OS ###
 .DS_Store
 Thumbs.db
