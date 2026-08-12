@@ -9,7 +9,7 @@ function App() {
   return (
     <Router>
       <Navbar />
-      <div> {/* Space for sticky nav removed so background reaches top */}
+      <div>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/workspace" element={<Workspace />} />

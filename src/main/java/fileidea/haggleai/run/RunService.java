@@ -1,24 +1,26 @@
 package fileidea.haggleai.run;
 
 import fileidea.haggleai.negotiation.NegotiationOrchestrator;
+import fileidea.haggleai.quote.Quote;
 import fileidea.haggleai.quote.QuoteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.UUID;
 
 /**
- * ★ YOURS — the state machine both channels read.
+ * The run state machine that both channels read.
  *
- * <p>Small class, load-bearing. The phone's hold loop asks it "are we there
- * yet?", the SSE stream asks it "what changed?", and the orchestrator is the
- * only thing that drives transitions. Getting this wrong shows up as a caller
- * stuck on hold forever.
+ * <p>The phone's hold loop asks it "are we there yet?", the SSE stream asks it
+ * "what changed?", and the orchestrator is the only thing that drives
+ * transitions. One source of truth, two surfaces.
  *
- * <h2>Legal transitions</h2>
+ * <h2>Transitions</h2>
  * <pre>
  * CREATED → SHOPPING → NEGOTIATING → READY
  *              ↓            ↓
@@ -27,23 +29,8 @@ import java.util.UUID;
  *           FAILED       FAILED      (nothing usable at all)
  * </pre>
  *
- * <h2>What to build</h2>
- * <ol>
- *   <li>{@code start} — persist the run with a deadline of
- *       {@code now + haggle.run.deadline-seconds}, hand it to the orchestrator
- *       on a background thread, and return <b>immediately</b>. The phone webhook
- *       is on a 15-second budget; it cannot wait here.</li>
- *   <li>{@code statusFor} — a short, speakable sentence built from live state.
- *       This is what the hold loop says out loud, so it has to sound like a
- *       person: "two clinics have quoted, best so far is $340".</li>
- *   <li>Enforce transitions. An illegal one should throw, not silently pass —
- *       you want to find that bug in a test, not on a call.</li>
- * </ol>
- *
- * <h2>Think about</h2>
- * PARTIAL is the state that makes the product feel good instead of broken. It's
- * tempting to skip it and go straight to FAILED — don't. Partial results beat
- * error messages, and this is where that's implemented.
+ * <p>PARTIAL is what makes a slow run feel like a product rather than an
+ * outage: partial results beat error messages, and this is where that lives.
  */
 @Service
 @RequiredArgsConstructor
@@ -66,34 +53,42 @@ public class RunService {
         return saved;
     }
 
-    /** One speakable sentence describing where this run is right now. */
+    /**
+     * One speakable sentence describing where this run is right now.
+     *
+     * <p>This is what the caller hears on every hold-loop poll, so it reports
+     * <b>live numbers</b>, not state names. "Two clinics have quoted, best so far
+     * is $340" is the difference between a caller who believes something is
+     * happening and one who thinks the line went dead — and the figures come from
+     * the same store the web view reads, so the two surfaces can never disagree.
+     */
     public String statusFor(UUID runId) {
         Optional<Run> run = runRepository.findById(runId);
-        if(run.isEmpty()) {
-            return "I couldn't find this run";
+        if (run.isEmpty()) {
+            return "I couldn't find that request.";
         }
-        Run realRun = run.get();
-        switch (realRun.getState()){
-            case CREATED -> {
-                return "It is running right now, please wait a moment";
-            }
-            case SHOPPING ->  {
-                return "Agents are calling the clinics right now to get the prices";
-            }
-            case NEGOTIATING -> {
-                return "Currently negotiating the prices so that the prices can go down";
-            }
-            case READY -> {
-                return "Agents are done negotiating and there is a lower price compared to others";
-            }
-            case PARTIAL -> {
-                return "Some of the Agents got a proper response back and there are some reasonable prices";
-            }
-            case FAILED -> {
-                return "None of the Agents got a reply back";
-            }
-        }
-        return null;
+
+        List<Quote> citable = quoteRepository.findByRunIdOrderByCapturedAtAsc(runId).stream()
+                .filter(Quote::citable)
+                .toList();
+        long clinicsQuoted = citable.stream().map(Quote::getClinicName).distinct().count();
+        OptionalDouble best = citable.stream().mapToDouble(Quote::total).min();
+        String bestSoFar = best.isPresent()
+                ? ", best so far is $" + (int) best.getAsDouble()
+                : "";
+
+        return switch (run.get().getState()) {
+            case CREATED -> "Getting started.";
+            case SHOPPING -> clinicsQuoted == 0
+                    ? "Still calling clinics."
+                    : clinicsQuoted + (clinicsQuoted == 1 ? " clinic has" : " clinics have")
+                        + " quoted" + bestSoFar + ".";
+            case NEGOTIATING -> "Negotiating now" + bestSoFar
+                    + ". Pressing them with each other's prices.";
+            case READY -> "All done.";
+            case PARTIAL -> "Wrapping up with what I've got" + bestSoFar + ".";
+            case FAILED -> "I'm having trouble reaching clinics right now.";
+        };
     }
 
     /** True when the caller can be given an answer — READY or PARTIAL. */

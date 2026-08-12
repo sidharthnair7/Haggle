@@ -1,73 +1,111 @@
 package fileidea.haggleai.voice;
 
+import fileidea.haggleai.ai.SpokenSummaryService;
+import fileidea.haggleai.run.JobSpec;
+import fileidea.haggleai.run.Run;
+import fileidea.haggleai.run.RunService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
+import java.util.UUID;
+
 /**
- * Twilio inbound voice webhook — the plumbing only.
- *
- * <p>Twilio POSTs form-encoded parameters here and expects TwiML (XML) back.
- * There is no SDK involved: {@code CallSid}/{@code From}/{@code SpeechResult}
- * bind natively as request params, and TwiML is a string with an XML content
- * type. That is the whole integration surface for inbound calls.
- *
- * <p><b>The constraint that shapes everything downstream:</b> Twilio enforces a
- * hard 15-second timeout on voice webhook responses, and that budget includes
- * TCP connect and TLS handshake. Every method here must return fast. Long work
- * belongs in a background run that the call polls via {@code <Redirect>}.
+ * Twilio inbound voice webhook. Returns TwiML fast; long work runs in the
+ * background and the call polls via {@code <Redirect>}.
  */
 @RestController
 @RequestMapping("/voice")
+@RequiredArgsConstructor
 public class VoiceWebhookController {
 
     private static final String XML = MediaType.APPLICATION_XML_VALUE;
+    private static final int MAX_POLLS = 20;
 
-    /**
-     * Entry point: Twilio hits this the moment the call connects.
-     *
-     * <p>Day-1 target is exactly this — pick up and say one sentence. Once that
-     * works end to end over a real PSTN call, replace the body with a
-     * {@code <Gather input="speech">} that posts the caller's intent to
-     * {@link #intent}.
-     */
+    private final RunService runService;
+    private final CallSessionRepository callSessionRepository;
+    private final IntentParser intentParser;
+    private final SpokenSummaryService spokenSummaryService;
+
+    @Value("${haggle.public-base-url:http://localhost:8080}")
+    private String publicBaseUrl;
+
     @PostMapping(value = "/incoming", produces = XML)
     public String incoming(@RequestParam("CallSid") String callSid,
                            @RequestParam(value = "From", required = false) String from) {
-        return say("Haggle A I here. Connected.");
+        callSessionRepository.save(new CallSession(callSid, from));
+        String action = publicBaseUrl + "/voice/intent";
+        return """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <Response>
+                  <Gather input="speech" timeout="4" speechTimeout="auto" action="%s" method="POST">
+                    <Say voice="Polly.Joanna">Haggle A I here. What scan do you need, and where?</Say>
+                  </Gather>
+                  <Say voice="Polly.Joanna">I didn't catch that. Call back when you're ready.</Say>
+                </Response>
+                """.formatted(escape(action));
     }
 
-    /**
-     * Speech intent lands here after a {@code <Gather>}.
-     *
-     * <p>TODO (yours): parse {@code speechResult} into a JobSpec, start the run,
-     * store the CallSid to runId mapping, then hand off to the hold loop.
-     */
     @PostMapping(value = "/intent", produces = XML)
     public String intent(@RequestParam("CallSid") String callSid,
-                         @RequestParam(value = "SpeechResult", required = false) String speechResult) {
-        throw new UnsupportedOperationException("intent capture not built yet");
+                         @RequestParam(value = "SpeechResult", required = false) String speechResult,
+                         @RequestParam(value = "From", required = false) String from) {
+        CallSession session = callSessionRepository.findById(callSid)
+                .orElseGet(() -> callSessionRepository.save(new CallSession(callSid, from)));
+
+        if (speechResult == null || speechResult.isBlank()) {
+            String action = publicBaseUrl + "/voice/intent";
+            return """
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <Response>
+                      <Gather input="speech" timeout="4" speechTimeout="auto" action="%s" method="POST">
+                        <Say voice="Polly.Joanna">Sorry, I missed that. Try saying something like M R I of the lumbar spine near Peterborough.</Say>
+                      </Gather>
+                      <Say voice="Polly.Joanna">Still nothing. Goodbye.</Say>
+                    </Response>
+                    """.formatted(escape(action));
+        }
+
+        JobSpec spec = intentParser.parse(speechResult);
+        Run run = runService.start(spec, true);
+        session.setRunId(run.getId());
+        callSessionRepository.save(session);
+
+        String checkUrl = publicBaseUrl + "/voice/check?runId=" + run.getId();
+        return sayAndRedirect(
+                "Got it. " + spec.describe() + ". Shopping clinics now. Stay on the line.",
+                checkUrl,
+                3
+        );
     }
 
-    /**
-     * The hold loop: Twilio re-enters here every few seconds while the run works.
-     *
-     * <p>TODO (yours). This is the load-bearing piece and it is deliberately not
-     * written for you — it is where the 15-second constraint gets solved. Shape:
-     * read run state, and either narrate real progress and redirect back here,
-     * or speak the final result. Never block waiting for the run to finish.
-     */
     @PostMapping(value = "/check", produces = XML)
     public String check(@RequestParam("CallSid") String callSid,
                         @RequestParam("runId") String runId) {
-        throw new UnsupportedOperationException("hold loop not built yet");
+        UUID id = UUID.fromString(runId);
+        CallSession session = callSessionRepository.findById(callSid).orElse(null);
+        int polls = session != null ? session.incrementPollCount() : 1;
+        if (session != null) {
+            callSessionRepository.save(session);
+        }
+
+        if (runService.answerable(id) || polls >= MAX_POLLS) {
+            if (session != null) {
+                session.setEndedAt(Instant.now());
+                callSessionRepository.save(session);
+            }
+            return say(spokenSummaryService.summarize(id));
+        }
+
+        String checkUrl = publicBaseUrl + "/voice/check?runId=" + runId;
+        return sayAndRedirect(runService.statusFor(id), checkUrl, 3);
     }
 
-    // ---- TwiML helpers ----
-
-    /** Speak a line, then hang up. */
     static String say(String line) {
         return """
                 <?xml version="1.0" encoding="UTF-8"?>
@@ -77,7 +115,6 @@ public class VoiceWebhookController {
                 """.formatted(escape(line));
     }
 
-    /** Speak a line, pause, then re-enter {@code next} — the hold-loop primitive. */
     static String sayAndRedirect(String line, String next, int pauseSeconds) {
         return """
                 <?xml version="1.0" encoding="UTF-8"?>
@@ -89,7 +126,6 @@ public class VoiceWebhookController {
                 """.formatted(escape(line), pauseSeconds, escape(next));
     }
 
-    /** TwiML is XML: an unescaped ampersand in a clinic name breaks the whole response. */
     private static String escape(String s) {
         return s == null ? "" : s.replace("&", "&amp;")
                 .replace("<", "&lt;")

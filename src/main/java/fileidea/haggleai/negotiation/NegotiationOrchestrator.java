@@ -8,24 +8,45 @@ import fileidea.haggleai.quote.QuoteRepository;
 import fileidea.haggleai.run.Run;
 import fileidea.haggleai.run.RunRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
- * Bulk Synchronous Parallel negotiation: round 1 shops in parallel (sequential
- * here for simplicity), then rounds 2+ cite verified leverage until prices stop
- * moving or the deadline hits.
+ * Bulk Synchronous Parallel negotiation.
+ *
+ * <p>Each round is a parallel compute phase followed by a barrier: every clinic
+ * is worked concurrently on a virtual thread, and nothing in round N+1 may read
+ * a result until round N has fully resolved. {@code invokeAll} <em>is</em> the
+ * barrier — it returns only when every task has finished.
+ *
+ * <p>The barrier is not a performance detail. Without it, clinic B could cite C
+ * as leverage while C is still citing B, and "this price moved because of that
+ * quote" would stop being a well-formed statement. Attribution — and therefore
+ * the whole provenance claim — depends on rounds resolving completely.
+ *
+ * <p>Rounds 2+ cite gate-verified leverage until no price moves (iteration to a
+ * fixed point) or the deadline expires.
  */
 @Service
 @RequiredArgsConstructor
 public class NegotiationOrchestrator {
+
+    private static final Logger log = LoggerFactory.getLogger(NegotiationOrchestrator.class);
 
     private final RunRepository runRepository;
     private final QuoteRepository quoteRepository;
@@ -80,9 +101,11 @@ public class NegotiationOrchestrator {
         runRepository.save(run);
         emit(runId, NegotiationEvent.Type.RUN_STARTED, null, 1, "Shopping started", null);
 
-        for (ClinicProfile clinic : clinicConfigService.forRun()) {
+        // Every clinic is dialled at once. Wall time is max(clinic), not sum(clinic) —
+        // which is the difference between fitting the deadline and blowing through it.
+        runInParallel(clinicConfigService.forRun(), clinic -> {
             if (run.expired()) {
-                break;
+                return;
             }
             emit(runId, NegotiationEvent.Type.CLINIC_DIALED, clinic.name(), 1,
                     "Calling " + clinic.name(), null);
@@ -92,8 +115,35 @@ public class NegotiationOrchestrator {
                     quote.getOutcome().name(),
                     quote.citable() || quote.getOutcome() == Quote.Outcome.BUNDLED
                             ? quote.total() : null);
-        }
+        });
+
         emit(runId, NegotiationEvent.Type.ROUND_COMPLETE, null, 1, "Round 1 complete", null);
+    }
+
+    /**
+     * Runs one task per clinic on virtual threads and waits for all of them.
+     *
+     * <p>The wait is the barrier. A clinic that throws is logged and skipped — one
+     * failed model call must not take down a round, because a run that dies
+     * because a single provider 500'd is a run that dies on stage.
+     */
+    private void runInParallel(List<ClinicProfile> clinics, Consumer<ClinicProfile> work) {
+        List<Callable<Void>> tasks = clinics.stream()
+                .map(clinic -> (Callable<Void>) () -> {
+                    try {
+                        work.accept(clinic);
+                    } catch (Exception e) {
+                        log.warn("Clinic task failed for {}: {}", clinic.name(), e.getMessage());
+                    }
+                    return null;
+                })
+                .toList();
+
+        try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
+            pool.invokeAll(tasks); // returns only when every task has finished — the barrier
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /** Reveal fees on BUNDLED quotes so they become citable leverage. */
@@ -133,53 +183,68 @@ public class NegotiationOrchestrator {
             run.setRound(round);
             runRepository.save(run);
 
-            boolean anyMoved = false;
+            // Snapshot BEFORE the parallel phase. Every callback in this round reasons
+            // about the same market state — that is what the barrier buys us, and it's
+            // why "B moved because of C's quote" stays a well-formed claim.
             Map<String, Quote> latestByClinic = latestQuotes(runId);
+            AtomicBoolean anyMoved = new AtomicBoolean(false);
+            int currentRound = round;
 
-            for (ClinicProfile clinic : clinicConfigService.forRun()) {
+            runInParallel(clinicConfigService.forRun(), clinic -> {
                 if (run.expired()) {
-                    break;
+                    return;
                 }
                 Quote theirs = latestByClinic.get(clinic.name());
                 if (theirs == null || !theirs.citable()) {
-                    continue;
+                    return;
                 }
                 double theirTotal = theirs.total();
                 Optional<Double> cited = negotiatorAgent.negotiate(
-                        runId, clinic, run.getSpec(), theirTotal, round);
+                        runId, clinic, run.getSpec(), theirTotal, currentRound);
                 if (cited.isEmpty()) {
-                    continue;
+                    return;
                 }
 
                 Quote response = clinicAgent.respondToLeverage(
-                        runId, clinic, run.getSpec(), theirTotal, cited.get(), round);
+                        runId, clinic, run.getSpec(), theirTotal, cited.get(), currentRound);
                 quoteRepository.save(response);
 
                 boolean moved = response.citable() && response.total() < theirTotal - 0.01;
                 emit(runId,
                         moved ? NegotiationEvent.Type.PRICE_MOVED : NegotiationEvent.Type.PRICE_HELD,
                         clinic.name(),
-                        round,
+                        currentRound,
                         moved
                                 ? "Moved from $" + (int) theirTotal + " to $" + (int) response.total()
                                 : "Held at $" + (int) theirTotal,
                         response.citable() ? response.total() : theirTotal);
                 if (moved) {
-                    anyMoved = true;
+                    anyMoved.set(true);
                 }
-            }
+            });
 
             emit(runId, NegotiationEvent.Type.ROUND_COMPLETE, null, round,
                     "Round " + round + " complete", null);
-            if (!anyMoved) {
+            if (!anyMoved.get()) {
                 break;
             }
         }
     }
 
+    /**
+     * Most recent quote per clinic.
+     *
+     * <p>Sorted by round first, then capture time. Under parallel execution several
+     * quotes can land in the same millisecond, so timestamp alone is not a stable
+     * ordering — round is the authoritative sequence and the timestamp only breaks
+     * ties within a round.
+     */
     private Map<String, Quote> latestQuotes(UUID runId) {
         Map<String, Quote> latest = new HashMap<>();
-        List<Quote> all = quoteRepository.findByRunIdOrderByCapturedAtAsc(runId);
+        List<Quote> all = quoteRepository.findByRunIdOrderByCapturedAtAsc(runId).stream()
+                .sorted(Comparator.comparingInt(Quote::getRound)
+                        .thenComparing(Quote::getCapturedAt))
+                .toList();
         for (Quote q : all) {
             latest.put(q.getClinicName(), q); // later overwrites earlier
         }

@@ -45,6 +45,9 @@ dist/
 ### keep the attribution in README, not 2,800 files of their repo.)
 frontend/temp_react_bits/
 
+### Logs ###
+*.log
+
 ### OS ###
 .DS_Store
 Thumbs.db

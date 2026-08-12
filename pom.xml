@@ -62,7 +62,10 @@
             <artifactId>spring-modulith-starter-jpa</artifactId>
         </dependency>
 
-        <!-- YAML config packs (clinics.yaml) -->
+        <!-- YAML config packs (clinics.yaml). Also the source of Jackson 2 on the
+             classpath — Spring Boot 4 auto-configures Jackson 3 (tools.jackson),
+             so the Jackson 2 ObjectMapper our AI clients use is declared explicitly
+             in JacksonConfig. -->
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
