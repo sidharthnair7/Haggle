@@ -14,10 +14,6 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-/**
- * Thin watsonx.ai REST client: IAM token + text generation.
- * Used for the caller-facing spoken summary (IBM sponsor path).
- */
 @Component
 public class WatsonxClient {
 

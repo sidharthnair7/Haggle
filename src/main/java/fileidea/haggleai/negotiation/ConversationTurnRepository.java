@@ -7,6 +7,5 @@ import java.util.UUID;
 
 public interface ConversationTurnRepository extends JpaRepository<ConversationTurn, Long> {
 
-    /** Ordered by id: turns are written concurrently, and id is the only stable sequence. */
     List<ConversationTurn> findByRunIdOrderByIdAsc(UUID runId);
 }

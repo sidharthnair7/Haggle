@@ -9,7 +9,7 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import ScrollProgressBar from './components/ScrollProgressBar'
 import Preloader from './components/Preloader'
-import CustomCursor from './components/CustomCursor'
+// import CustomCursor from './components/CustomCursor' // disabled — see below
 
 // Register GSAP plugins
 gsap.registerPlugin(ScrollTrigger)
@@ -78,8 +78,11 @@ function App() {
       {/* Preloader */}
       {!loaded && <Preloader onComplete={() => setLoaded(true)} />}
 
-      {/* Custom cursor */}
-      <CustomCursor />
+      {/* Custom cursor disabled: it sets `body { cursor: none }`, so any render
+          failure leaves the user with no pointer at all, and screen recorders
+          composite the OS cursor separately — which shows up in a demo video as
+          a missing or desynced cursor. Component kept for later. */}
+      {/* <CustomCursor /> */}
 
       {/* Scroll progress bar */}
       <ScrollProgressBar />

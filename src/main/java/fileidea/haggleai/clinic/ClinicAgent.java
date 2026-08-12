@@ -7,31 +7,21 @@ import fileidea.haggleai.negotiation.ConversationTurnRepository;
 import fileidea.haggleai.quote.LineItem;
 import fileidea.haggleai.quote.Quote;
 import fileidea.haggleai.run.JobSpec;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Clinic counterparty. Prefers a real LLM conversation when OpenAI is configured;
- * always enforces the hidden floor in code. Falls back to deterministic profile
- * maths so demos never depend on a live model.
- */
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class ClinicAgent {
-
-    private static final Logger log = LoggerFactory.getLogger(ClinicAgent.class);
 
     private final OpenAiChatSupport openAi;
     private final ConversationTurnRepository conversations;
-
-    public ClinicAgent(OpenAiChatSupport openAi, ConversationTurnRepository conversations) {
-        this.openAi = openAi;
-        this.conversations = conversations;
-    }
 
     private void sayClinic(UUID runId, String clinic, int round, String text, Double amount) {
         if (text != null && !text.isBlank()) {
@@ -42,12 +32,8 @@ public class ClinicAgent {
 
     public Quote openingQuote(UUID runId, ClinicProfile profile, JobSpec spec) {
         if (profile.stonewalls()) {
-            // A refusing clinic still answers the phone — it just won't give a
-            // number. Without a line here the card renders empty and reads as a bug.
             sayClinic(runId, profile.name(), 1,
                     profile.refusesAiCallers()
-                            // Not a policy statement — the moment someone realises,
-                            // with the false start people actually make.
                             ? "Hold on, is this an AI? Yeah — sorry, we don't do this. "
                               + "Have the patient call us themselves."
                             : "We don't do quotes over the phone, sorry. She'd have to come "
@@ -69,18 +55,6 @@ public class ClinicAgent {
         return deterministicOpening(runId, profile, spec);
     }
 
-    /**
-     * Reveal the hidden fees behind a bundled headline.
-     *
-     * <p>Deliberately deterministic. Itemization is not a negotiating decision —
-     * it is disclosure of a fee schedule that already exists in config, and the
-     * whole point of the lowballer persona is that the real total is higher than
-     * the headline. Left to a model, this reliably returns the same number it
-     * already quoted, which silently deletes the most important beat in the demo.
-     *
-     * <p>Numbers come from config; the model still owns every negotiating choice
-     * in {@link #respondToLeverage}.
-     */
     public Quote pressForItemization(UUID runId, ClinicProfile profile, JobSpec spec) {
         if (profile.stonewalls()) {
             return declined(runId, profile, 1);
@@ -88,16 +62,6 @@ public class ClinicAgent {
         return deterministicItemize(runId, profile, spec);
     }
 
-    /**
-     * Respond to a gate-verified competing quote: concede, or hold.
-     *
-     * <p>The model decides <b>whether</b> to move and <b>how far</b> inside a band
-     * that code computes and code enforces. Two walls apply: it may never quote
-     * below {@link ClinicProfile#floor()}, and — enforced here — it may never
-     * quote <i>above</i> what it already offered. A counterparty that raises its
-     * price when shown a cheaper competitor isn't negotiating, and left unbounded
-     * that is exactly what a model will sometimes do.
-     */
     public Quote respondToLeverage(UUID runId, ClinicProfile profile, JobSpec spec,
                                    double currentTotal, double citedCompetingTotal, int round) {
         if (profile.stonewalls()) {
@@ -216,7 +180,6 @@ public class ClinicAgent {
                         said != null ? said : "We don't give quotes over the phone, sorry.", null);
                 return declined(runId, profile, round);
             }
-            // empty but not declined → fall back
             throw new IllegalStateException("LLM returned no line items");
         }
 
@@ -230,7 +193,6 @@ public class ClinicAgent {
             return rebuildAtFloor(runId, profile, spec, round, profile.floor());
         }
 
-        // Bundled openings that itemize-up-front profiles shouldn't emit as BUNDLED
         if (!profile.itemizesUpFront() && mode.equals("opening") && outcome == Quote.Outcome.ITEMIZED
                 && items.size() == 1) {
             outcome = Quote.Outcome.BUNDLED;
@@ -325,11 +287,6 @@ public class ClinicAgent {
         return profile.fees() == null ? List.of() : profile.fees();
     }
 
-    /**
-     * Fees as a person would read them aloud: "a $120 facility fee and $75 for
-     * contrast administration" — not "Facility fee $120; Contrast admin $75".
-     * The semicolon-delimited version is fine for a prompt and wrong for a mouth.
-     */
     private static String spokenFees(ClinicProfile profile) {
         List<ClinicProfile.Fee> fees = safeFees(profile);
         if (fees.isEmpty()) {

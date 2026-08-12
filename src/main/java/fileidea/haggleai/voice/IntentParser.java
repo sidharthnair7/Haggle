@@ -3,10 +3,6 @@ package fileidea.haggleai.voice;
 import fileidea.haggleai.run.JobSpec;
 import org.springframework.stereotype.Component;
 
-/**
- * Cheap speech → JobSpec parser for the demo. Looks for procedure / body part /
- * contrast / location keywords. Swap for an LLM later without changing callers.
- */
 @Component
 public class IntentParser {
 

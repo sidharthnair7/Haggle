@@ -12,13 +12,6 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Loads the counterparty config pack once at boot.
- *
- * <p>"Config, not code" is a real claim here: nothing in the agents, the gate or
- * the orchestrator names a clinic or a price. Point this at a different YAML and
- * the same engine negotiates a different market.
- */
 @Service
 public class ClinicConfigService {
 
@@ -41,14 +34,6 @@ public class ClinicConfigService {
         }
     }
 
-    /**
-     * The clinics for one run, capped at the configured count.
-     *
-     * <p>Demo runs at 5 for legibility; set {@code CLINIC_COUNT=10} to prove it
-     * scales. Note the structural ceiling: leverage only ever cites the single
-     * best competing quote, so clinics beyond the first few widen the spread
-     * without adding much negotiating power.
-     */
     public List<ClinicProfile> forRun() {
         return clinics.stream().limit(Math.max(1, clinicCount)).toList();
     }

@@ -10,10 +10,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Browser "call" channel — same intake path as Twilio, JSON instead of TwiML.
- * Demo fallback when a PSTN number isn't available.
- */
 @RestController
 @RequestMapping("/api/voice")
 @RequiredArgsConstructor

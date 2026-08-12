@@ -13,10 +13,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Caller-facing spoken summary. Prefer IBM watsonx when configured (sponsor
- * prize path); otherwise a deterministic sentence so the demo never dies.
- */
 @Service
 public class SpokenSummaryService {
 
@@ -69,7 +65,6 @@ public class SpokenSummaryService {
                     """.formatted(facts);
 
             String generated = watsonx.generate(prompt, 80);
-            // Keep phone TTS short
             String cleaned = generated.replace('\n', ' ').trim();
             if (cleaned.length() > 280) {
                 cleaned = cleaned.substring(0, 280);

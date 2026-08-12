@@ -8,8 +8,7 @@ import fileidea.haggleai.quote.QuoteRepository;
 import fileidea.haggleai.run.Run;
 import fileidea.haggleai.run.RunRepository;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -43,10 +42,9 @@ import java.util.function.Consumer;
  * fixed point) or the deadline expires.
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class NegotiationOrchestrator {
-
-    private static final Logger log = LoggerFactory.getLogger(NegotiationOrchestrator.class);
 
     private final RunRepository runRepository;
     private final QuoteRepository quoteRepository;
@@ -61,13 +59,11 @@ public class NegotiationOrchestrator {
                 runId, clinic, round, ConversationTurn.Speaker.AGENT, text, null));
     }
 
-    /** "an MRI", not "a MRI" — the transcript is read by humans. */
     private static String article(String phrase) {
         if (phrase == null || phrase.isBlank()) {
             return "a";
         }
         char c = Character.toUpperCase(phrase.charAt(0));
-        // Letters whose spoken name starts with a vowel sound take "an" (an M-R-I).
         return "AEFHILMNORSX".indexOf(c) >= 0 ? "an" : "a";
     }
 
@@ -117,18 +113,12 @@ public class NegotiationOrchestrator {
         runRepository.save(run);
         emit(runId, NegotiationEvent.Type.RUN_STARTED, null, 1, "Shopping started", null);
 
-        // Every clinic is dialled at once. Wall time is max(clinic), not sum(clinic) —
-        // which is the difference between fitting the deadline and blowing through it.
         runInParallel(clinicConfigService.forRun(), clinic -> {
             if (run.expired()) {
                 return;
             }
             emit(runId, NegotiationEvent.Type.CLINIC_DIALED, clinic.name(), 1,
                     "Calling " + clinic.name(), null);
-            // Disclosure goes on every call, not just the one that gets refused.
-            // The agent that can't invent a price doesn't get to pretend it's a
-            // person either — and it's what makes modelling an AI-refusing clinic
-            // an honest scenario rather than a story about getting caught.
             sayAgent(runId, clinic.name(), 1,
                     "Hi, this is the HaggleAI agent calling for a patient — she's paying "
                             + "cash, so I'm just trying to get a price on "
@@ -171,7 +161,6 @@ public class NegotiationOrchestrator {
         }
     }
 
-    /** Reveal fees on BUNDLED quotes so they become citable leverage. */
     private void itemizeBundled(Run run) {
         UUID runId = run.getId();
         Map<String, Quote> latestByClinic = latestQuotes(runId);
@@ -211,9 +200,7 @@ public class NegotiationOrchestrator {
             run.setRound(round);
             runRepository.save(run);
 
-            // Snapshot BEFORE the parallel phase. Every callback in this round reasons
             // about the same market state — that is what the barrier buys us, and it's
-            // why "B moved because of C's quote" stays a well-formed claim.
             Map<String, Quote> latestByClinic = latestQuotes(runId);
             AtomicBoolean anyMoved = new AtomicBoolean(false);
             int currentRound = round;
@@ -259,14 +246,6 @@ public class NegotiationOrchestrator {
         }
     }
 
-    /**
-     * Most recent quote per clinic.
-     *
-     * <p>Sorted by round first, then capture time. Under parallel execution several
-     * quotes can land in the same millisecond, so timestamp alone is not a stable
-     * ordering — round is the authoritative sequence and the timestamp only breaks
-     * ties within a round.
-     */
     private Map<String, Quote> latestQuotes(UUID runId) {
         Map<String, Quote> latest = new HashMap<>();
         List<Quote> all = quoteRepository.findByRunIdOrderByCapturedAtAsc(runId).stream()

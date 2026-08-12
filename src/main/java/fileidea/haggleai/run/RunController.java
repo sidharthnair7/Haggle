@@ -32,11 +32,6 @@ public class RunController {
 
     private final ExecutorService sseExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
-    /**
-     * Every field is boxed and optional on purpose. A primitive here means an
-     * omitted field is a 400 instead of a default — the API should accept
-     * {@code {"procedureName":"MRI"}} and fill in the rest.
-     */
     public record StartRunRequest(
             String procedureName,
             String bodyPart,
@@ -72,7 +67,6 @@ public class RunController {
     ) {
     }
 
-    /** One spoken line, so the UI can render the call as a conversation. */
     public record TurnDto(
             Long id,
             String clinicName,
@@ -152,21 +146,16 @@ public class RunController {
                 .orElse(0);
         double savings = winner != null ? Math.max(0, highest - winner.total()) : 0;
 
-        // The opening market — what a patient faces before anyone negotiates.
         double openingLow = openingCitable.values().stream()
                 .mapToDouble(Quote::total).min().orElse(0);
         double openingHigh = openingCitable.values().stream()
                 .mapToDouble(Quote::total).max().orElse(0);
 
-        // Headline number: what you'd expect to pay calling ONE clinic at random
-        // (the average opening quote) versus what the run actually got you.
         double naiveBaseline = openingCitable.values().stream()
                 .mapToDouble(Quote::total).average().orElse(0);
         double savingsVsNaive = winner != null
                 ? Math.max(0, naiveBaseline - winner.total()) : 0;
 
-        // The most visceral proof the negotiation did something: the single
-        // largest drop between a clinic's opening and its final price.
         double biggestConcession = 0;
         String biggestConcessionClinic = null;
         for (Map.Entry<String, Quote> entry : openingCitable.entrySet()) {
@@ -217,11 +206,6 @@ public class RunController {
     ) {
     }
 
-    /**
-     * Honesty demo: deliberately try to cite a fake competing price.
-     * The leverage gate should REFUSE — proving the agent cannot bluff.
-     * This never contacts a clinic; it only exercises the gate + audit log.
-     */
     @PostMapping("/{id}/bluff")
     public BluffResponse bluff(@PathVariable UUID id, @RequestBody(required = false) BluffRequest body) {
         if (runRepository.findById(id).isEmpty()) {

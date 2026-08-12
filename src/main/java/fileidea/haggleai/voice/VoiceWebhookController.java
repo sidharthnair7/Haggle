@@ -15,10 +15,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Twilio inbound voice webhook. Returns TwiML fast; long work runs in the
- * background and the call polls via {@code <Redirect>}.
- */
 @RestController
 @RequestMapping("/voice")
 @RequiredArgsConstructor

@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.UUID;
 
-
 @Service
 @AllArgsConstructor
 public class LeverageGate {
@@ -18,10 +17,6 @@ public class LeverageGate {
     }
 
     public Result verify(UUID runId, String againstClinic, double claimedTotal) {
-        //1) get all quotes on this run NOT from againstClinic
-        //2) Keep only the citable ones(Quote already has a citable()method.
-        //3) is there one whose total() is within a cent of claimedTotal?
-        //4) yes-> result(true,",,," that quote
         List<Quote> quotes = quoteRepository.findByRunIdAndClinicNameNot(runId, againstClinic);
 
         List<Quote>citableQuotes=quotes.stream()

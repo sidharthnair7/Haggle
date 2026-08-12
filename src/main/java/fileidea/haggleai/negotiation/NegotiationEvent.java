@@ -1,16 +1,17 @@
 package fileidea.haggleai.negotiation;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * One thing that happened, in order. This table is the timeline the web view
- * streams over SSE and the source the phone reads when it narrates progress
- * during the hold loop — both surfaces, one truth.
- */
 @Entity
 @Table(name = "negotiation_events")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class NegotiationEvent {
 
     public enum Type {
@@ -49,9 +50,6 @@ public class NegotiationEvent {
 
     private Instant at = Instant.now();
 
-    protected NegotiationEvent() {
-    }
-
     public NegotiationEvent(UUID runId, Type type, String clinicName, int round, String detail, Double amount) {
         this.runId = runId;
         this.type = type;
@@ -59,37 +57,5 @@ public class NegotiationEvent {
         this.round = round;
         this.detail = detail;
         this.amount = amount;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public UUID getRunId() {
-        return runId;
-    }
-
-    public Type getType() {
-        return type;
-    }
-
-    public String getClinicName() {
-        return clinicName;
-    }
-
-    public int getRound() {
-        return round;
-    }
-
-    public String getDetail() {
-        return detail;
-    }
-
-    public Double getAmount() {
-        return amount;
-    }
-
-    public Instant getAt() {
-        return at;
     }
 }

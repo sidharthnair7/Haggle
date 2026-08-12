@@ -13,25 +13,6 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.UUID;
 
-/**
- * The run state machine that both channels read.
- *
- * <p>The phone's hold loop asks it "are we there yet?", the SSE stream asks it
- * "what changed?", and the orchestrator is the only thing that drives
- * transitions. One source of truth, two surfaces.
- *
- * <h2>Transitions</h2>
- * <pre>
- * CREATED → SHOPPING → NEGOTIATING → READY
- *              ↓            ↓
- *           PARTIAL      PARTIAL     (deadline hit, but quotes exist)
- *              ↓            ↓
- *           FAILED       FAILED      (nothing usable at all)
- * </pre>
- *
- * <p>PARTIAL is what makes a slow run feel like a product rather than an
- * outage: partial results beat error messages, and this is where that lives.
- */
 @Service
 @RequiredArgsConstructor
 public class RunService {
@@ -42,7 +23,6 @@ public class RunService {
     @Value("${haggle.run.deadline-seconds:25}")
     private int deadlineSeconds;
 
-    /** Creates the run, kicks off the orchestrator asynchronously, returns at once. */
     public Run start(JobSpec spec, boolean leverageEnabled) {
         UUID uuid = UUID.randomUUID();
         Instant deadline = Instant.now().plusSeconds(deadlineSeconds);
@@ -53,15 +33,6 @@ public class RunService {
         return saved;
     }
 
-    /**
-     * One speakable sentence describing where this run is right now.
-     *
-     * <p>This is what the caller hears on every hold-loop poll, so it reports
-     * <b>live numbers</b>, not state names. "Two clinics have quoted, best so far
-     * is $340" is the difference between a caller who believes something is
-     * happening and one who thinks the line went dead — and the figures come from
-     * the same store the web view reads, so the two surfaces can never disagree.
-     */
     public String statusFor(UUID runId) {
         Optional<Run> run = runRepository.findById(runId);
         if (run.isEmpty()) {
@@ -91,7 +62,6 @@ public class RunService {
         };
     }
 
-    /** True when the caller can be given an answer — READY or PARTIAL. */
     public boolean answerable(UUID runId) {
 
       Optional<Run> run = runRepository.findById(runId);

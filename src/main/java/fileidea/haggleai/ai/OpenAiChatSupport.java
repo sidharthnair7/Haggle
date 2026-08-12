@@ -7,9 +7,6 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
-/**
- * Optional OpenAI ChatClient. Absent/placeholder keys → {@link #available()} is false.
- */
 @Component
 public class OpenAiChatSupport {
 

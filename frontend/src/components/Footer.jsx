@@ -71,10 +71,13 @@ export default function Footer() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
-            {/* Socials */}
+            {/* One real link beats three that go nowhere — judges click these. */}
             <div style={{ display: 'flex', gap: '16px' }}>
-              {['Twitter', 'GitHub', 'Discord'].map((s, i) => (
-                <a key={i} href="#" style={{
+              <a
+                href="https://github.com/sidharthnair7/HaggleAI"
+                target="_blank"
+                rel="noreferrer"
+                style={{
                   color: 'rgba(255,255,255,0.4)',
                   fontSize: '0.8rem',
                   fontFamily: 'var(--font-mono)',
@@ -83,20 +86,13 @@ export default function Footer() {
                 }}
                 onMouseEnter={e => e.currentTarget.style.color = '#fff'}
                 onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
-                >
-                  {s}
-                </a>
-              ))}
+              >
+                GitHub
+              </a>
             </div>
 
             <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.2)' }} />
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div className="status-dot pulse" style={{ width: '6px', height: '6px', background: '#10B981', boxShadow: '0 0 8px rgba(16,185,129,0.7)' }} />
-              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-mono)' }}>
-                All Systems Operational
-              </span>
-            </div>
             <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
             <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
               © 2026

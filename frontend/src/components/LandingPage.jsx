@@ -111,28 +111,42 @@ function useTypewriter(text, active, speed = 28) {
 /* ─────────────────────────────────────────────────────
    LIVE TERMINAL HERO
 ───────────────────────────────────────────────────── */
+/**
+ * Transcript of an actual run, copied verbatim from the API — same clinics,
+ * same figures, same spoken lines you get in the workspace. The page and the
+ * product have to tell the same story; invented numbers here would be the first
+ * thing to fall apart when someone clicks through.
+ */
 const AGENT_LINES = [
-  { text: '> haggleai init --spec "lumbar-mri-no-contrast"', color: 'var(--accent-indigo)', delay: 0 },
-  { text: '✓ Parsed: MRI · Lumbar Spine · Without Contrast · Outpatient', color: '#059669', delay: 1 },
-  { text: '» Querying 3 local providers...', color: 'rgba(0,0,0,0.5)', delay: 2 },
-  { text: '  [1/3] Valley Scan CT         → $555  (initial)', color: 'rgba(0,0,0,0.7)', delay: 3 },
-  { text: '  [2/3] Apex Imaging Center    → $620  (initial)', color: 'rgba(0,0,0,0.7)', delay: 4 },
-  { text: '  [3/3] Bay Health MRI         → $890  ⚠ 61% over benchmark', color: '#e11d48', delay: 5 },
-  { text: '» Initiating counter-offer on Valley Scan CT...', color: 'rgba(0,0,0,0.5)', delay: 6 },
-  { text: '  Agent: "Doctor order is freestanding outpatient. Match ceiling?"', color: 'var(--accent-indigo)', delay: 7 },
-  { text: '  Clinic: "We can waive tech premium. Final: $455."', color: 'rgba(0,0,0,0.7)', delay: 8 },
-  { text: '✓ Deal locked — Valley Scan CT @ $455', color: '#059669', delay: 9 },
-  { text: '» Initiating counter-offer on Apex Imaging...', color: 'rgba(0,0,0,0.5)', delay: 10 },
-  { text: '  Agent: "Competing offer at $455. Match or counter?"', color: 'var(--accent-indigo)', delay: 11 },
-  { text: '  Clinic: "Best we can do: $550."', color: 'rgba(0,0,0,0.7)', delay: 12 },
+  { text: '> haggleai run --procedure "MRI lumbar spine, no contrast" --near Peterborough', color: 'var(--accent-indigo)', delay: 0 },
+  { text: '✓ Spec parsed · 5 clinics dialled in parallel', color: '#059669', delay: 1 },
+  { text: '', delay: 2 },
+  { text: '  Agent  → "Hi, this is the HaggleAI agent calling for a patient..."', color: 'var(--accent-indigo)', delay: 2 },
+  { text: '  Otonabee Health Scan   "Hold on, is this an AI? Sorry, we don\'t do this."', color: '#e11d48', delay: 3 },
+  { text: '  Trent Valley           $460   itemized', color: 'rgba(0,0,0,0.7)', delay: 4 },
+  { text: '  Kawartha Imaging       $495   itemized', color: 'rgba(0,0,0,0.7)', delay: 4 },
+  { text: '  Lakeridge Imaging      $560   itemized', color: 'rgba(0,0,0,0.7)', delay: 5 },
+  { text: '  Peterborough Diag.     $380   ⚠ no breakdown given', color: '#e11d48', delay: 5 },
+  { text: '', delay: 6 },
+  { text: '» Pressing Peterborough for an itemized breakdown...', color: 'rgba(0,0,0,0.5)', delay: 6 },
+  { text: '  Clinic → "the scan is $380, then $120 facility and $75 contrast admin."', color: 'rgba(0,0,0,0.7)', delay: 7 },
+  { text: '  Peterborough Diag.     $575   ← $195 in fees revealed', color: '#e11d48', delay: 8 },
+  { text: '', delay: 9 },
+  { text: '» Round 2 · citing verified competing quotes', color: 'rgba(0,0,0,0.5)', delay: 9 },
+  { text: '  Agent  → "Trent Valley quoted me $460 — can you get closer to that?"', color: 'var(--accent-indigo)', delay: 10 },
+  { text: '  Clinic → "Uh, let me see... I can get you a total of $481."', color: 'rgba(0,0,0,0.7)', delay: 11 },
+  { text: '  ✗ REFUSED  agent tried to cite $200 — not in the quote store', color: '#e11d48', delay: 12 },
   { text: '', delay: 13 },
-  { text: '══ FINAL REPORT ════════════════════════════════════', color: '#4f46e5', delay: 14 },
-  { text: '  RANK 1  Valley Scan CT     $455   ← BEST DEAL', color: '#059669', delay: 14 },
-  { text: '  RANK 2  Apex Imaging       $550', color: 'rgba(0,0,0,0.7)', delay: 14 },
-  { text: '  RANK 3  Bay Health MRI     $890   [FLAGGED]', color: '#e11d48', delay: 14 },
-  { text: '  Savings vs. chargemaster:  $947   (−62%)', color: '#059669', delay: 15 },
+  { text: '══ RANKED REPORT ═══════════════════════════════════', color: '#4f46e5', delay: 14 },
+  { text: '  RANK 1  Trent Valley Radiology     $460   ← BEST DEAL', color: '#059669', delay: 14 },
+  { text: '  RANK 2  Kawartha Imaging           $465', color: 'rgba(0,0,0,0.7)', delay: 14 },
+  { text: '  RANK 3  Lakeridge Imaging          $469', color: 'rgba(0,0,0,0.7)', delay: 14 },
+  { text: '  RANK 4  Peterborough Diagnostic    $481', color: 'rgba(0,0,0,0.7)', delay: 15 },
+  { text: '  Otonabee Health Scan       declined to quote', color: 'rgba(0,0,0,0.4)', delay: 15 },
   { text: '', delay: 16 },
-  { text: '✓ Audit log saved. Ready for next run.', color: '#059669', delay: 17 },
+  { text: '  Opening market  $460–$575    saved vs. one clinic at random  $62', color: '#059669', delay: 16 },
+  { text: '  Largest concession  $94 (Peterborough)', color: '#059669', delay: 17 },
+  { text: '✓ Every cited figure verified against the quote store.', color: '#059669', delay: 18 },
 ];
 
 function LiveTerminal({ running, onComplete }) {
@@ -199,7 +213,7 @@ const PIPELINE_STEPS = [
     num: '02',
     label: 'Query',
     title: 'Provider Sweep',
-    desc: 'The agent calls every local provider simultaneously, collecting itemized cash-pay quotes. Bay Health MRI quotes $890 — 61% above the regional outpatient benchmark.',
+    desc: 'Every clinic is worked at once on its own thread. Peterborough Diagnostic quotes $380 — until we ask for the breakdown and $195 in fees appear.',
     color: '#0ea5e9',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -211,7 +225,7 @@ const PIPELINE_STEPS = [
     num: '03',
     label: 'Haggle',
     title: 'Autonomous Negotiation',
-    desc: 'The agent re-engages providers using real market leverage. It references competing bids and benchmark rates to drive counter-offers. Valley Scan CT drops to $455.',
+    desc: 'The agent calls back citing verified competing quotes. It cannot invent a figure — every price it names is checked against the quote store first, or refused.',
     color: '#8b5cf6',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -223,7 +237,7 @@ const PIPELINE_STEPS = [
     num: '04',
     label: 'Report',
     title: 'Ranked Audit Report',
-    desc: 'Every offer is ranked and compliance-checked. Flagged outliers are highlighted. Valley Scan CT wins at $455 — a 62% saving vs. chargemaster. Full audit trail included.',
+    desc: 'Offers ranked, with the full call transcript behind each one. Trent Valley wins at $460, and every price movement traces to the quote that caused it.',
     color: '#10b981',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -346,10 +360,11 @@ function CallWave({ active, color }) {
 /* ─────────────────────────────────────────────────────
    DEMO STRIP — interactive 3-panel walkthrough
 ───────────────────────────────────────────────────── */
+// Same clinics and figures the workspace produces — see AGENT_LINES above.
 const PROVIDERS = [
-  { name: 'Valley Scan CT', initial: 555, final: 455, color: '#10b981' },
-  { name: 'Apex Imaging', initial: 620, final: 550, color: '#94a3b8' },
-  { name: 'Bay Health MRI', initial: 890, final: 890, color: '#f43f5e', flag: true },
+  { name: 'Trent Valley Radiology', initial: 460, final: 460, color: '#10b981' },
+  { name: 'Kawartha Imaging', initial: 495, final: 465, color: '#94a3b8' },
+  { name: 'Peterborough Diagnostic', initial: 575, final: 481, color: '#f43f5e', flag: true },
 ];
 
 function InteractiveDemo() {
@@ -568,10 +583,10 @@ function InteractiveDemo() {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <div style={{ fontSize: '0.65rem', color: 'rgba(0,0,0,0.6)', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                  Ranked Compliant Offers
+                  Verified Offers
                 </div>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: '#10b981', fontWeight: 700 }}>
-                  −62% vs. chargemaster
+                  $460 best · opened at $575
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -720,7 +735,7 @@ export default function LandingPage() {
               transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
               style={{ display: 'block' }}
             >
-              AI that calls providers
+              Five clinics compete.
             </motion.span>
             <motion.span
               initial={{ opacity: 0, y: 20 }}
@@ -733,7 +748,7 @@ export default function LandingPage() {
                 paddingBottom: '0.15em',
               }}
             >
-              and haggles for you.
+              Every price verified.
             </motion.span>
           </h1>
 
@@ -747,7 +762,7 @@ export default function LandingPage() {
               textAlign: 'center', marginBottom: '48px',
             }}
           >
-            Upload a doctor's order. The agent sweeps local providers, runs autonomous voice negotiations, and returns the lowest itemized cash-pay quote — with a full audit trail.
+            Say what scan you need. A negotiator agent works every clinic at once, plays their quotes against each other, and comes back with the lowest itemized cash price — and it can't cite a figure no clinic actually gave.
           </motion.p>
 
           <motion.div
@@ -895,7 +910,7 @@ export default function LandingPage() {
                 This is the actual product flow. Edit the doctor's order, watch the agent call providers, and see the ranked results — all right here.
               </p>
               <div style={{ marginTop: '28px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {['Parse any doctor\'s order in seconds', 'Live calls to every local provider', 'Autonomous haggling with real leverage', 'Itemized audit trail, every time'].map((item, i) => (
+                {['Parse any doctor\'s order in seconds', 'Every clinic worked in parallel', 'Negotiation with gate-verified leverage', 'Full call transcript, every time'].map((item, i) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, x: -16 }}

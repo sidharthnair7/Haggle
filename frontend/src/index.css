@@ -773,12 +773,15 @@ img, video { display: block; max-width: 100%; }
   transition: opacity 0.2s ease;
 }
 
-/* Hide default cursor globally when custom cursor is active */
+/* Custom cursor is disabled (see App.jsx), so the native pointer must stay
+   visible. If <CustomCursor /> is ever re-enabled, restore this rule with it —
+   never one without the other, or the page ends up with no pointer at all.
 @media (pointer: fine) {
   * {
     cursor: none !important;
   }
 }
+*/
 
 /* ─────────────────────────────────────────────
    PRELOADER
@@ -825,7 +828,7 @@ img, video { display: block; max-width: 100%; }
    MAGNETIC BUTTON RIPPLE
 ───────────────────────────────────────────── */
 .magnetic-wrap {
-  cursor: none;
+  cursor: pointer;
 }
 
 .magnetic-ripple {

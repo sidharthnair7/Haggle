@@ -3,10 +3,6 @@ package fileidea.haggleai.ai;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/**
- * Central switches for which model backends are live. Missing keys never crash
- * the app — agents fall back to deterministic behaviour.
- */
 @Component
 public class AiSettings {
 

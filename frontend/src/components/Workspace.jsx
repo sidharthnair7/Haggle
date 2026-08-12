@@ -407,11 +407,20 @@ export default function Workspace() {
   };
 
   const startNegotiation = () => {
-    if (!parseDone) { handleParseOrder(); addTimeout(() => doStart(), 1600); return; }
+    // Guard against an impatient second click: without this, clicking Confirm
+    // while the parse animation is still running schedules doStart() twice, and
+    // the second call clears the first run's timers and state mid-flight.
+    if (busy || stage > 1) return;
+    if (!parseDone) {
+      if (!isParsing) handleParseOrder();
+      addTimeout(() => doStart(), 1600);
+      return;
+    }
     doStart();
   };
 
   const doStart = async () => {
+    if (busy) return;
     clearTimeouts();
     unsubRef.current?.();
     unsubRef.current = null;

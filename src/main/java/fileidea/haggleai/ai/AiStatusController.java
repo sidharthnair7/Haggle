@@ -7,9 +7,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/**
- * Lets you confirm which AI backends will activate once keys are in {@code .env}.
- */
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor

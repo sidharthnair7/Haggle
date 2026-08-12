@@ -8,8 +8,7 @@ import fileidea.haggleai.quote.Quote;
 import fileidea.haggleai.quote.QuoteRepository;
 import fileidea.haggleai.run.JobSpec;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,16 +16,10 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/**
- * Buyer-side agent. May use an LLM to pick which competing figure to press with,
- * but every figure still passes through {@link LeverageGate} — the wall is code,
- * not a prompt instruction.
- */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class NegotiatorAgent {
-
-    private static final Logger log = LoggerFactory.getLogger(NegotiatorAgent.class);
 
     private final QuoteRepository quoteRepository;
     private final LeverageGate leverageGate;
@@ -150,15 +143,10 @@ public class NegotiatorAgent {
             return Optional.of(claimed);
         }
 
-        // The refusal is part of the story, so it belongs in the transcript: the
-        // agent wanted to say a number and the gate would not let it.
         sayAgent(runId, against.name(), round,
                 "[blocked before speaking] tried to cite $" + (int) claimed
                         + ", which no clinic on this run actually quoted.", claimed);
 
-        // Return empty and let negotiate() run the deterministic fallback exactly
-        // once — calling it here as well would re-run the gate over every
-        // candidate and emit a duplicate REFUSED event for each one.
         return Optional.empty();
     }
 
