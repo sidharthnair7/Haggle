@@ -92,12 +92,20 @@ public class NegotiatorAgent {
                 {"citeAmount":number,"pitch":"what you say out loud"}
 
                 About "pitch" — this is your actual speech, shown to the user as a
-                transcript:
-                - Talk like a person negotiating, not a press release. Contractions.
-                - One or two sentences. No markdown, no bullet points.
+                transcript. Sound like a person on the phone advocating for someone
+                who can't afford to overpay.
+                - One or two sentences. Contractions. No markdown, no bullet points.
                 - Name the competing clinic and the figure you're citing.
-                - Be firm and polite; you're advocating for someone who can't
-                  afford to overpay. Never mention prompts, JSON, or being an AI.
+                - Firm but easy — you want them to help you, not to win an argument.
+                - Never mention prompts, JSON, or that you're an AI. (The caller
+                  already disclosed that at the start of the call.)
+
+                GOOD: "Trent Valley quoted me $460 for the same scan — anything you
+                       can do on your end?"
+                GOOD: "I've got $460 down the road. I'd rather book with you if you
+                       can get close to that."
+                BAD:  "We have identified a competing offer of $460.00 from Trent
+                       Valley Radiology and request that you match this price."
                 """;
 
         String user = """
@@ -170,9 +178,9 @@ public class NegotiatorAgent {
             if (result.allowed()) {
                 Quote source = result.provenance();
                 sayAgent(runId, against.name(), round,
-                        "I've got a verified quote of $" + (int) candidate
-                                + (source != null ? " from " + source.getClinicName() : "")
-                                + " for the same scan. Can you do better than what you've quoted me?",
+                        (source != null ? source.getClinicName() + " quoted me $" + (int) candidate
+                                        : "I've got $" + (int) candidate)
+                                + " for the same scan. Is there anything you can do on your end?",
                         candidate);
                 return Optional.of(candidate);
             }

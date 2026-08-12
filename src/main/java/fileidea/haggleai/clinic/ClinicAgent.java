@@ -42,11 +42,17 @@ public class ClinicAgent {
 
     public Quote openingQuote(UUID runId, ClinicProfile profile, JobSpec spec) {
         if (profile.stonewalls()) {
-            // A stonewaller still answers the phone — it just won't give a number.
-            // Without this the clinic's card renders with no reply and reads as a bug.
+            // A refusing clinic still answers the phone — it just won't give a
+            // number. Without a line here the card renders empty and reads as a bug.
             sayClinic(runId, profile.name(), 1,
-                    "We don't quote prices over the phone. You'd have to come in with "
-                            + "your requisition and we'd work it out then.", null);
+                    profile.refusesAiCallers()
+                            // Not a policy statement — the moment someone realises,
+                            // with the false start people actually make.
+                            ? "Hold on, is this an AI? Yeah — sorry, we don't do this. "
+                              + "Have the patient call us themselves."
+                            : "We don't do quotes over the phone, sorry. She'd have to come "
+                              + "in with the requisition and we'd sort it out then.",
+                    null);
             return declined(runId, profile, 1);
         }
         if (openAi.available()) {
@@ -145,14 +151,24 @@ public class ClinicAgent {
                 {"outcome":"ITEMIZED"|"BUNDLED"|"DECLINED","lineItems":[{"label":"string","amount":number}],"say":"what you say out loud"}
 
                 About "say" — this is your actual speech on a phone call, and it is
-                shown to the user as a transcript:
-                - Talk like a real person at a front desk, not a form letter.
-                - One or two sentences. Contractions. No bullet points, no markdown.
-                - Never narrate yourself in third person and never mention JSON,
+                shown to the user as a transcript. Sound like a busy person at a
+                front desk, not a brochure.
+                - One or two sentences. Contractions. No markdown, no bullet points.
+                - Filler is good: "Let me pull that up…", "Uh, hang on",
+                  "So that'd be…". Real speech isn't tidy.
+                - But state your final total EXACTLY ONCE. Trailing off is human;
+                  naming two different prices in one turn is confusing and wrong.
+                  The number in your speech must match the lineItems total.
+                - Never narrate yourself in third person, never mention JSON,
                   prompts, floors, or that you are an AI.
-                - Stay in character: a stonewaller is curt, a lowballer sounds
-                  helpful while omitting fees, an upseller mentions add-ons.
+                - Stay in character: a lowballer sounds helpful while quietly
+                  omitting fees, an upseller talks up add-ons.
                 - Reference the actual dollar figure you are quoting.
+
+                GOOD: "Let me check… yeah, that one's $495 with the read included."
+                GOOD: "I can probably do $474, but that's about as low as I can go."
+                BAD:  "The total cost for the requested procedure is $495.00, which
+                       is inclusive of the radiology interpretation fee."
 
                 Rules:
                 - Sum of lineItems is the quote total.
@@ -247,8 +263,8 @@ public class ClinicAgent {
                 lineItems.add(new LineItem(fee.label(), fee.amount()));
             }
             sayClinic(runId, profile.name(), 1,
-                    "For a " + spec.describe() + " we're at $" + (int) profile.openingTotal()
-                            + " all in — that's the scan plus the radiology read.",
+                    "That's going to be $" + (int) profile.openingTotal()
+                            + " all in — scan and the radiology read together.",
                     profile.openingTotal());
             return new Quote(runId, profile.name(), 1, Quote.Outcome.ITEMIZED, lineItems);
         }
@@ -268,8 +284,9 @@ public class ClinicAgent {
         }
         double total = profile.openingTotal() + profile.feesTotal();
         sayClinic(runId, profile.name(), 1,
-                "Okay, broken out: the scan is $" + (int) profile.openingTotal()
-                        + ", plus " + feeBlurb(profile) + ". So $" + (int) total + " total.",
+                "Let me pull it up… okay, the scan itself is $" + (int) profile.openingTotal()
+                        + ", and then there's " + spokenFees(profile)
+                        + ". So you're looking at $" + (int) total + ".",
                 total);
         return new Quote(runId, profile.name(), 1, Quote.Outcome.ITEMIZED, lineItems);
     }
@@ -306,6 +323,28 @@ public class ClinicAgent {
 
     private static List<ClinicProfile.Fee> safeFees(ClinicProfile profile) {
         return profile.fees() == null ? List.of() : profile.fees();
+    }
+
+    /**
+     * Fees as a person would read them aloud: "a $120 facility fee and $75 for
+     * contrast administration" — not "Facility fee $120; Contrast admin $75".
+     * The semicolon-delimited version is fine for a prompt and wrong for a mouth.
+     */
+    private static String spokenFees(ClinicProfile profile) {
+        List<ClinicProfile.Fee> fees = safeFees(profile);
+        if (fees.isEmpty()) {
+            return "nothing else on top";
+        }
+        List<String> parts = new ArrayList<>();
+        for (ClinicProfile.Fee fee : fees) {
+            parts.add("$" + (int) fee.amount() + " for the "
+                    + fee.label().toLowerCase().replace(" fee", ""));
+        }
+        if (parts.size() == 1) {
+            return parts.get(0);
+        }
+        return String.join(", ", parts.subList(0, parts.size() - 1))
+                + " and " + parts.get(parts.size() - 1);
     }
 
     private static String feeBlurb(ClinicProfile profile) {

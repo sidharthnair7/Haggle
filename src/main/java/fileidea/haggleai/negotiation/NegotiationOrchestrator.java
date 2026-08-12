@@ -125,10 +125,15 @@ public class NegotiationOrchestrator {
             }
             emit(runId, NegotiationEvent.Type.CLINIC_DIALED, clinic.name(), 1,
                     "Calling " + clinic.name(), null);
+            // Disclosure goes on every call, not just the one that gets refused.
+            // The agent that can't invent a price doesn't get to pretend it's a
+            // person either — and it's what makes modelling an AI-refusing clinic
+            // an honest scenario rather than a story about getting caught.
             sayAgent(runId, clinic.name(), 1,
-                    "Hi — I'm calling to get a cash-pay price for "
+                    "Hi, this is the HaggleAI agent calling for a patient — she's paying "
+                            + "cash, so I'm just trying to get a price on "
                             + article(run.getSpec().describe()) + " "
-                            + run.getSpec().describe() + ". What would that run?");
+                            + run.getSpec().describe() + ". What're you charging for that?");
             Quote quote = clinicAgent.openingQuote(runId, clinic, run.getSpec());
             quoteRepository.save(quote);
             emit(runId, NegotiationEvent.Type.QUOTE_RECEIVED, clinic.name(), 1,
@@ -186,8 +191,8 @@ public class NegotiationOrchestrator {
             emit(runId, NegotiationEvent.Type.PRESSED_FOR_ITEMIZATION, entry.getKey(), 1,
                     "Pressed for itemization", latest.total());
             sayAgent(runId, entry.getKey(), 1,
-                    "Before I book anything — can you break that down for me? "
-                            + "I want every line, including facility and read fees.");
+                    "Before we go further — can you break that down for me? "
+                            + "Is there a facility fee or a read fee on top of that?");
             Quote itemized = clinicAgent.pressForItemization(runId, profile.get(), run.getSpec());
             quoteRepository.save(itemized);
             emit(runId, NegotiationEvent.Type.QUOTE_RECEIVED, entry.getKey(), 1,

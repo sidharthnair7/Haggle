@@ -42,8 +42,11 @@ clinics:
         amount: 60
     itemizesUpFront: true
 
+  # Refuses once the agent discloses it's automated. Replaces the plain
+  # stonewaller rather than adding to it — two of five clinics refusing would
+  # be more friction than the demo can carry, and this is the better reason.
   - name: "Otonabee Health Scan"
-    persona: STONEWALLER
+    persona: REFUSES_AI_CALLERS
     openingTotal: 0
     floor: 0
     concessionRate: 0.0

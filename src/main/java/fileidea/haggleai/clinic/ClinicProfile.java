@@ -28,7 +28,18 @@ public record ClinicProfile(
         /** Opens high, pads with add-ons, but has real room to move. */
         HARD_SELL_UPSELLER,
         /** Won't quote by phone at all. Documented, not punished. */
-        STONEWALLER
+        STONEWALLER,
+        /**
+         * Hangs up once the caller discloses it's an automated agent.
+         *
+         * <p>A real friction, not a gimmick: plenty of front desks won't deal
+         * with automated callers. Modelling it is only defensible because the
+         * agent <em>discloses</em> — the refusal is a response to honesty, not
+         * a failure to deceive. Same principle as the leverage gate: the system
+         * that won't let its agent invent a price won't let it pretend to be a
+         * person either.
+         */
+        REFUSES_AI_CALLERS
     }
 
     public record Fee(String label, double amount) {
@@ -38,8 +49,13 @@ public record ClinicProfile(
         return fees == null ? 0 : fees.stream().mapToDouble(Fee::amount).sum();
     }
 
-    /** True when this clinic will never produce a citable number. */
+    /** True when this clinic will never produce a citable number, whatever the reason. */
     public boolean stonewalls() {
-        return persona == Persona.STONEWALLER;
+        return persona == Persona.STONEWALLER || persona == Persona.REFUSES_AI_CALLERS;
+    }
+
+    /** True when the refusal is specifically about talking to an automated caller. */
+    public boolean refusesAiCallers() {
+        return persona == Persona.REFUSES_AI_CALLERS;
     }
 }
