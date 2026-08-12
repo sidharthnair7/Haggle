@@ -54,6 +54,22 @@ public class NegotiationOrchestrator {
     private final ClinicConfigService clinicConfigService;
     private final ClinicAgent clinicAgent;
     private final NegotiatorAgent negotiatorAgent;
+    private final ConversationTurnRepository conversations;
+
+    private void sayAgent(UUID runId, String clinic, int round, String text) {
+        conversations.save(new ConversationTurn(
+                runId, clinic, round, ConversationTurn.Speaker.AGENT, text, null));
+    }
+
+    /** "an MRI", not "a MRI" — the transcript is read by humans. */
+    private static String article(String phrase) {
+        if (phrase == null || phrase.isBlank()) {
+            return "a";
+        }
+        char c = Character.toUpperCase(phrase.charAt(0));
+        // Letters whose spoken name starts with a vowel sound take "an" (an M-R-I).
+        return "AEFHILMNORSX".indexOf(c) >= 0 ? "an" : "a";
+    }
 
     @Value("${haggle.run.max-rounds:3}")
     private int maxRounds;
@@ -109,6 +125,10 @@ public class NegotiationOrchestrator {
             }
             emit(runId, NegotiationEvent.Type.CLINIC_DIALED, clinic.name(), 1,
                     "Calling " + clinic.name(), null);
+            sayAgent(runId, clinic.name(), 1,
+                    "Hi — I'm calling to get a cash-pay price for "
+                            + article(run.getSpec().describe()) + " "
+                            + run.getSpec().describe() + ". What would that run?");
             Quote quote = clinicAgent.openingQuote(runId, clinic, run.getSpec());
             quoteRepository.save(quote);
             emit(runId, NegotiationEvent.Type.QUOTE_RECEIVED, clinic.name(), 1,
@@ -165,6 +185,9 @@ public class NegotiationOrchestrator {
             }
             emit(runId, NegotiationEvent.Type.PRESSED_FOR_ITEMIZATION, entry.getKey(), 1,
                     "Pressed for itemization", latest.total());
+            sayAgent(runId, entry.getKey(), 1,
+                    "Before I book anything — can you break that down for me? "
+                            + "I want every line, including facility and read fees.");
             Quote itemized = clinicAgent.pressForItemization(runId, profile.get(), run.getSpec());
             quoteRepository.save(itemized);
             emit(runId, NegotiationEvent.Type.QUOTE_RECEIVED, entry.getKey(), 1,

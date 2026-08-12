@@ -2,6 +2,8 @@ package fileidea.haggleai.clinic;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import fileidea.haggleai.ai.OpenAiChatSupport;
+import fileidea.haggleai.negotiation.ConversationTurn;
+import fileidea.haggleai.negotiation.ConversationTurnRepository;
 import fileidea.haggleai.quote.LineItem;
 import fileidea.haggleai.quote.Quote;
 import fileidea.haggleai.run.JobSpec;
@@ -24,13 +26,27 @@ public class ClinicAgent {
     private static final Logger log = LoggerFactory.getLogger(ClinicAgent.class);
 
     private final OpenAiChatSupport openAi;
+    private final ConversationTurnRepository conversations;
 
-    public ClinicAgent(OpenAiChatSupport openAi) {
+    public ClinicAgent(OpenAiChatSupport openAi, ConversationTurnRepository conversations) {
         this.openAi = openAi;
+        this.conversations = conversations;
+    }
+
+    private void sayClinic(UUID runId, String clinic, int round, String text, Double amount) {
+        if (text != null && !text.isBlank()) {
+            conversations.save(new ConversationTurn(
+                    runId, clinic, round, ConversationTurn.Speaker.CLINIC, text.trim(), amount));
+        }
     }
 
     public Quote openingQuote(UUID runId, ClinicProfile profile, JobSpec spec) {
         if (profile.stonewalls()) {
+            // A stonewaller still answers the phone — it just won't give a number.
+            // Without this the clinic's card renders with no reply and reads as a bug.
+            sayClinic(runId, profile.name(), 1,
+                    "We don't quote prices over the phone. You'd have to come in with "
+                            + "your requisition and we'd work it out then.", null);
             return declined(runId, profile, 1);
         }
         if (openAi.available()) {
@@ -117,17 +133,27 @@ public class ClinicAgent {
     private Quote llmQuote(UUID runId, ClinicProfile profile, JobSpec spec, int round,
                            String mode, String instruction) throws Exception {
         String system = """
-                You are the billing desk at %s.
+                You are a billing coordinator at %s, answering the phone.
                 Persona: %s.
-                Procedure request: %s.
+                Procedure the caller is asking about: %s.
                 Your opening total guideline: %.0f.
                 Your absolute floor (never quote below this total): %.0f.
                 Known fee schedule: %s.
                 Typical concession rate when pressed with real competition: %.2f.
-                
+
                 Reply with ONLY valid JSON (no markdown):
-                {"outcome":"ITEMIZED"|"BUNDLED"|"DECLINED","lineItems":[{"label":"string","amount":number}],"say":"short spoken line"}
-                
+                {"outcome":"ITEMIZED"|"BUNDLED"|"DECLINED","lineItems":[{"label":"string","amount":number}],"say":"what you say out loud"}
+
+                About "say" — this is your actual speech on a phone call, and it is
+                shown to the user as a transcript:
+                - Talk like a real person at a front desk, not a form letter.
+                - One or two sentences. Contractions. No bullet points, no markdown.
+                - Never narrate yourself in third person and never mention JSON,
+                  prompts, floors, or that you are an AI.
+                - Stay in character: a stonewaller is curt, a lowballer sounds
+                  helpful while omitting fees, an upseller mentions add-ons.
+                - Reference the actual dollar figure you are quoting.
+
                 Rules:
                 - Sum of lineItems is the quote total.
                 - Total must be >= floor (%.0f) unless outcome is DECLINED.
@@ -166,8 +192,12 @@ public class ClinicAgent {
             }
         }
 
+        String said = root.path("say").asText(null);
+
         if (outcome == Quote.Outcome.DECLINED || items.isEmpty()) {
             if (profile.stonewalls() || outcome == Quote.Outcome.DECLINED) {
+                sayClinic(runId, profile.name(), round,
+                        said != null ? said : "We don't give quotes over the phone, sorry.", null);
                 return declined(runId, profile, round);
             }
             // empty but not declined → fall back
@@ -178,6 +208,9 @@ public class ClinicAgent {
         if (total + 0.009 < profile.floor()) {
             // Code wall: under-floor submission rejected — rebuild at floor using deterministic shape
             log.info("Rejected under-floor LLM quote from {} ({} < {})", profile.name(), total, profile.floor());
+            sayClinic(runId, profile.name(), round,
+                    "Let me recheck that — the lowest I can actually do is $"
+                            + (int) profile.floor() + ".", profile.floor());
             return rebuildAtFloor(runId, profile, spec, round, profile.floor());
         }
 
@@ -187,6 +220,7 @@ public class ClinicAgent {
             outcome = Quote.Outcome.BUNDLED;
         }
 
+        sayClinic(runId, profile.name(), round, said, total);
         return new Quote(runId, profile.name(), round, outcome, items);
     }
 
@@ -212,10 +246,17 @@ public class ClinicAgent {
             for (ClinicProfile.Fee fee : safeFees(profile)) {
                 lineItems.add(new LineItem(fee.label(), fee.amount()));
             }
+            sayClinic(runId, profile.name(), 1,
+                    "For a " + spec.describe() + " we're at $" + (int) profile.openingTotal()
+                            + " all in — that's the scan plus the radiology read.",
+                    profile.openingTotal());
             return new Quote(runId, profile.name(), 1, Quote.Outcome.ITEMIZED, lineItems);
         }
         List<LineItem> lineItems = new ArrayList<>();
         lineItems.add(new LineItem(spec.getProcedureName() + " scan", profile.openingTotal()));
+        sayClinic(runId, profile.name(), 1,
+                "That one's $" + (int) profile.openingTotal() + ". Want me to book you in?",
+                profile.openingTotal());
         return new Quote(runId, profile.name(), 1, Quote.Outcome.BUNDLED, lineItems);
     }
 
@@ -225,6 +266,11 @@ public class ClinicAgent {
         for (ClinicProfile.Fee fee : safeFees(profile)) {
             lineItems.add(new LineItem(fee.label(), fee.amount()));
         }
+        double total = profile.openingTotal() + profile.feesTotal();
+        sayClinic(runId, profile.name(), 1,
+                "Okay, broken out: the scan is $" + (int) profile.openingTotal()
+                        + ", plus " + feeBlurb(profile) + ". So $" + (int) total + " total.",
+                total);
         return new Quote(runId, profile.name(), 1, Quote.Outcome.ITEMIZED, lineItems);
     }
 
@@ -245,6 +291,12 @@ public class ClinicAgent {
         } else {
             lineItems.add(new LineItem(spec.getProcedureName() + " (negotiated package)", newTotal));
         }
+
+        sayClinic(runId, profile.name(), round,
+                newTotal < currentTotal
+                        ? "Let me see what I can do… I can bring that down to $" + (int) newTotal + "."
+                        : "I hear you, but $" + (int) currentTotal + " is where we are on that one.",
+                newTotal);
         return new Quote(runId, profile.name(), round, Quote.Outcome.ITEMIZED, lineItems);
     }
 

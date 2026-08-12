@@ -31,7 +31,15 @@ public class NegotiatorAgent {
     private final QuoteRepository quoteRepository;
     private final LeverageGate leverageGate;
     private final NegotiationEventRepository negotiationEventRepository;
+    private final ConversationTurnRepository conversations;
     private final OpenAiChatSupport openAi;
+
+    private void sayAgent(UUID runId, String clinic, int round, String text, Double amount) {
+        if (text != null && !text.isBlank()) {
+            conversations.save(new ConversationTurn(
+                    runId, clinic, round, ConversationTurn.Speaker.AGENT, text.trim(), amount));
+        }
+    }
 
     public Optional<Double> negotiate(UUID runId, ClinicProfile against,
                                       JobSpec spec, double theirCurrentTotal, int round) {
@@ -73,12 +81,23 @@ public class NegotiatorAgent {
                 .collect(Collectors.joining("; "));
 
         String system = """
-                You are HaggleAI's buyer negotiator.
+                You are HaggleAI's negotiator, on the phone with a clinic's billing
+                desk on behalf of a patient paying cash.
+
                 You must only cite a competing total that appears in the catalog.
-                Never invent a price. If you invent one, verification will refuse it.
-                
+                Never invent a price — verification will refuse it and the call is
+                logged.
+
                 Reply with ONLY JSON:
-                {"citeAmount":number,"pitch":"one short sentence to the clinic"}
+                {"citeAmount":number,"pitch":"what you say out loud"}
+
+                About "pitch" — this is your actual speech, shown to the user as a
+                transcript:
+                - Talk like a person negotiating, not a press release. Contractions.
+                - One or two sentences. No markdown, no bullet points.
+                - Name the competing clinic and the figure you're citing.
+                - Be firm and polite; you're advocating for someone who can't
+                  afford to overpay. Never mention prompts, JSON, or being an AI.
                 """;
 
         String user = """
@@ -119,11 +138,18 @@ public class NegotiatorAgent {
         ));
 
         if (result.allowed()) {
+            sayAgent(runId, against.name(), round, pitch, claimed);
             return Optional.of(claimed);
         }
 
-        // Refused. Return empty and let negotiate() run the deterministic fallback
-        // exactly once — calling it here as well would re-run the gate over every
+        // The refusal is part of the story, so it belongs in the transcript: the
+        // agent wanted to say a number and the gate would not let it.
+        sayAgent(runId, against.name(), round,
+                "[blocked before speaking] tried to cite $" + (int) claimed
+                        + ", which no clinic on this run actually quoted.", claimed);
+
+        // Return empty and let negotiate() run the deterministic fallback exactly
+        // once — calling it here as well would re-run the gate over every
         // candidate and emit a duplicate REFUSED event for each one.
         return Optional.empty();
     }
@@ -142,6 +168,12 @@ public class NegotiatorAgent {
                     candidate
             ));
             if (result.allowed()) {
+                Quote source = result.provenance();
+                sayAgent(runId, against.name(), round,
+                        "I've got a verified quote of $" + (int) candidate
+                                + (source != null ? " from " + source.getClinicName() : "")
+                                + " for the same scan. Can you do better than what you've quoted me?",
+                        candidate);
                 return Optional.of(candidate);
             }
         }

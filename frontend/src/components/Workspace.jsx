@@ -95,21 +95,28 @@ function buildRedFlag(snap) {
   return `${pressed.clinicName} quoted $${money(bundled.total)} up front, then added $${hidden} in fees once we asked for the full breakdown.`;
 }
 
-/** Most recent negotiation exchange, for the streaming chat bubbles. */
+/**
+ * Most recent exchange, for the live chat bubbles.
+ *
+ * Reads the real transcript rather than event descriptions, so the bubbles show
+ * what was actually said on the call instead of a summary of it.
+ */
 function buildDialogue(snap) {
-  const events = snap.events || [];
-  const cite = [...events].reverse().find(
-    (e) => e.type === 'LEVERAGE_ALLOWED' || e.type === 'LEVERAGE_REFUSED'
-  );
-  if (!cite) return null;
+  const turns = snap.conversation || [];
+  if (turns.length === 0) return null;
 
-  const reply = [...events].reverse().find(
-    (e) => (e.type === 'PRICE_MOVED' || e.type === 'PRICE_HELD') && e.clinicName === cite.clinicName
+  const lastAgent = [...turns].reverse().find((t) => t.speaker === 'AGENT');
+  if (!lastAgent) return null;
+
+  const reply = [...turns].reverse().find(
+    (t) => t.speaker === 'CLINIC'
+      && t.clinicName === lastAgent.clinicName
+      && t.id > lastAgent.id
   );
 
   return {
-    agent: cite.detail,
-    clinic: reply ? reply.detail : 'Checking with billing…',
+    agent: lastAgent.text,
+    clinic: reply ? reply.text : 'Let me check with billing…',
   };
 }
 
@@ -341,6 +348,7 @@ export default function Workspace() {
   ]);
   const [editingSpec, setEditingSpec] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
+  const [expandedClinic, setExpandedClinic] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [honestyBanner, setHonestyBanner] = useState(null);
@@ -475,6 +483,10 @@ export default function Workspace() {
     setBusy(false);
     setRunIndex(prev => prev + 1);
   };
+
+  /** Every spoken line for one clinic, in order. */
+  const turnsFor = (clinicName) =>
+    (snapshot?.conversation || []).filter((t) => t.clinicName === clinicName);
 
   // Scale the price bars against the highest opening quote actually seen.
   const highestPrice = Math.max(
@@ -817,11 +829,98 @@ export default function Workspace() {
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isFocused && dialogue ? '12px' : '5px' }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.84rem', color: isFocused ? '#1a0d1e' : 'rgba(26,13,30,0.65)' }}>{p.name}</div>
+                      <button
+                        onClick={() => setExpandedClinic(expandedClinic === p.name ? null : p.name)}
+                        title={`Show the full call with ${p.name}`}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '5px',
+                          background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                          fontWeight: 600, fontSize: '0.84rem', textAlign: 'left',
+                          color: isFocused ? '#1a0d1e' : 'rgba(26,13,30,0.65)',
+                        }}
+                      >
+                        <ChevronRight
+                          size={12}
+                          style={{
+                            transform: expandedClinic === p.name ? 'rotate(90deg)' : 'none',
+                            transition: 'transform 0.2s',
+                            opacity: 0.45,
+                          }}
+                        />
+                        {p.name}
+                        {turnsFor(p.name).length > 0 && (
+                          <span style={{ fontSize: '0.62rem', color: 'rgba(26,13,30,0.3)', fontWeight: 500 }}>
+                            · {turnsFor(p.name).length} lines
+                          </span>
+                        )}
+                      </button>
                       <span style={{ padding: '2px 8px', borderRadius: 'var(--radius-pill)', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.06em', background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
                         {p.status.toUpperCase()}
                       </span>
                     </div>
+
+                    {/* Full call transcript — click the clinic name to open */}
+                    <AnimatePresence>
+                      {expandedClinic === p.name && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                          style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '10px' }}
+                        >
+                          {turnsFor(p.name).length === 0 && (
+                            <div style={{ fontSize: '0.72rem', color: 'rgba(26,13,30,0.35)', padding: '6px 0' }}>
+                              No call recorded for this clinic yet.
+                            </div>
+                          )}
+                          {turnsFor(p.name).map((t) => {
+                            const isAgent = t.speaker === 'AGENT';
+                            const blocked = isAgent && t.text.startsWith('[blocked');
+                            return (
+                              <div
+                                key={t.id}
+                                style={{
+                                  display: 'flex', gap: '7px', alignItems: 'flex-start',
+                                  flexDirection: isAgent ? 'row' : 'row-reverse',
+                                }}
+                              >
+                                <div style={{
+                                  width: '20px', height: '20px', borderRadius: '50%',
+                                  background: blocked ? 'rgba(244,63,94,0.14)' : isAgent ? 'rgba(166,139,196,0.2)' : 'rgba(26,13,30,0.06)',
+                                  border: `1px solid ${blocked ? 'rgba(244,63,94,0.3)' : isAgent ? 'rgba(166,139,196,0.3)' : 'rgba(26,13,30,0.1)'}`,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                }}>
+                                  {blocked
+                                    ? <Shield size={10} color="var(--accent-rose)" />
+                                    : isAgent
+                                      ? <Bot size={10} color="var(--accent-indigo)" />
+                                      : <User size={10} color="rgba(26,13,30,0.4)" />}
+                                </div>
+                                <div style={{
+                                  maxWidth: '78%', padding: '7px 10px', borderRadius: 'var(--radius-md)',
+                                  fontSize: '0.76rem', lineHeight: 1.5,
+                                  background: blocked ? 'rgba(244,63,94,0.06)' : isAgent ? 'rgba(166,139,196,0.1)' : 'rgba(26,13,30,0.04)',
+                                  border: `1px solid ${blocked ? 'rgba(244,63,94,0.2)' : isAgent ? 'rgba(166,139,196,0.18)' : 'rgba(26,13,30,0.07)'}`,
+                                  color: 'rgba(26,13,30,0.8)',
+                                }}>
+                                  <div style={{
+                                    fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.07em',
+                                    textTransform: 'uppercase', marginBottom: '3px',
+                                    color: blocked ? 'var(--accent-rose)' : isAgent ? 'var(--accent-indigo)' : 'rgba(26,13,30,0.32)',
+                                  }}>
+                                    {blocked ? 'Blocked by leverage gate' : isAgent ? 'HaggleAI Agent' : p.name}
+                                    <span style={{ fontWeight: 500, letterSpacing: 0, textTransform: 'none', opacity: 0.7 }}>
+                                      {' '}· round {t.round}
+                                    </span>
+                                  </div>
+                                  {t.text}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
                     {/* Streaming chat bubbles */}
                     {isFocused && dialogue && (

@@ -1,5 +1,7 @@
 package fileidea.haggleai.run;
 
+import fileidea.haggleai.negotiation.ConversationTurn;
+import fileidea.haggleai.negotiation.ConversationTurnRepository;
 import fileidea.haggleai.negotiation.NegotiationEvent;
 import fileidea.haggleai.negotiation.NegotiationEventRepository;
 import fileidea.haggleai.quote.LeverageGate;
@@ -25,6 +27,7 @@ public class RunController {
     private final RunRepository runRepository;
     private final QuoteRepository quoteRepository;
     private final NegotiationEventRepository negotiationEventRepository;
+    private final ConversationTurnRepository conversationRepository;
     private final LeverageGate leverageGate;
 
     private final ExecutorService sseExecutor = Executors.newVirtualThreadPerTaskExecutor();
@@ -69,6 +72,18 @@ public class RunController {
     ) {
     }
 
+    /** One spoken line, so the UI can render the call as a conversation. */
+    public record TurnDto(
+            Long id,
+            String clinicName,
+            int round,
+            String speaker,
+            String text,
+            Double amount,
+            Instant at
+    ) {
+    }
+
     public record RunSnapshot(
             UUID id,
             String state,
@@ -82,6 +97,7 @@ public class RunController {
             JobSpec spec,
             List<QuoteDto> quotes,
             List<EventDto> events,
+            List<TurnDto> conversation,
             QuoteDto winner,
             double savingsVsHighest,
             double savingsVsNaive,
@@ -178,6 +194,7 @@ public class RunController {
                 run.getSpec(),
                 quotes.stream().map(this::toDto).toList(),
                 events.stream().map(this::toDto).toList(),
+                conversationRepository.findByRunIdOrderByIdAsc(id).stream().map(this::toDto).toList(),
                 winner != null ? toDto(winner) : null,
                 savings,
                 savingsVsNaive,
@@ -310,6 +327,18 @@ public class RunController {
                         .map(li -> new LineItemDto(li.getLabel(), li.getAmount()))
                         .toList(),
                 q.getCapturedAt()
+        );
+    }
+
+    private TurnDto toDto(ConversationTurn t) {
+        return new TurnDto(
+                t.getId(),
+                t.getClinicName(),
+                t.getRound(),
+                t.getSpeaker().name(),
+                t.getText(),
+                t.getAmount(),
+                t.getAt()
         );
     }
 
