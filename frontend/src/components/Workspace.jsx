@@ -6,25 +6,112 @@ import {
   BarChart2, RefreshCw, ChevronRight, Mic, Copy, Download
 } from 'lucide-react';
 import './Workspace.css';
+import { startRun, getRun, subscribeRunEvents, tryBluff } from '../api';
 
-/* ─── Provider pools (randomized each run) ────── */
-const PROVIDER_POOLS = [
-  [
-    { name: 'Valley Scan CT', initial: 555, final: 455 },
-    { name: 'Apex Imaging', initial: 620, final: 550 },
-    { name: 'Bay Health MRI', initial: 890, final: 890, flag: true },
-  ],
-  [
-    { name: 'ClearView Imaging', initial: 490, final: 410 },
-    { name: 'Summit Radiology', initial: 670, final: 590 },
-    { name: 'Metro Health Scan', initial: 870, final: 870, flag: true },
-  ],
-  [
-    { name: 'Pacific Scan CT', initial: 510, final: 430 },
-    { name: 'Northside Imaging', initial: 605, final: 530 },
-    { name: 'Regional MRI Center', initial: 910, final: 910, flag: true },
-  ],
-];
+/* ─── Backend snapshot → view model ──────────────
+   The UI shapes below (providers / logs / savings / redFlag / dialogue) are
+   exactly what the design already renders. Only their source changed: a live
+   run instead of a scripted timeline. */
+
+const money = (n) => Math.round(Number(n) || 0);
+
+/** Collapse the append-only quote history into one card per clinic. */
+function buildProviders(snap, winnerName) {
+  const byClinic = new Map();
+
+  for (const q of snap.quotes || []) {
+    const entry = byClinic.get(q.clinicName) || {
+      name: q.clinicName, opening: null, latest: null, lastRaw: null,
+    };
+    if (q.citable) {
+      if (!entry.opening) entry.opening = q;
+      entry.latest = q;
+    }
+    entry.lastRaw = q;
+    byClinic.set(q.clinicName, entry);
+  }
+
+  return [...byClinic.values()].map((e, i) => {
+    const opening = e.opening ? money(e.opening.total) : null;
+    const current = e.latest ? money(e.latest.total) : null;
+    const outcome = e.lastRaw?.outcome;
+
+    let status = 'Awaiting response';
+    let statusType = 'pending';
+
+    if (!e.latest && outcome === 'DECLINED') {
+      status = "Wouldn't quote";
+    } else if (!e.latest && outcome === 'BUNDLED') {
+      status = 'No breakdown yet';
+      statusType = 'warn';
+    } else if (current !== null && e.name === winnerName) {
+      status = 'Best deal';
+      statusType = 'complete';
+    } else if (opening !== null && current !== null && current < opening) {
+      status = 'Price reduced';
+      statusType = 'complete';
+    } else if (current !== null) {
+      status = 'Held firm';
+    }
+
+    return {
+      id: e.name || `clinic-${i}`,
+      name: e.name,
+      initialPrice: opening,
+      price: current,
+      status,
+      statusType,
+    };
+  });
+}
+
+/** Backend events → the audit log rows the design already renders (newest first). */
+function buildLogs(snap) {
+  return [...(snap.events || [])]
+    .reverse()
+    .map((ev) => ({
+      id: ev.id,
+      time: new Date(ev.at).toLocaleTimeString([], {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }),
+      clinic: ev.clinicName || 'System',
+      action: ev.detail || ev.type,
+      bid: ev.amount != null ? `$${money(ev.amount)}` : '—',
+    }));
+}
+
+/** The hidden-fee reveal, stated the way a patient would understand it. */
+function buildRedFlag(snap) {
+  const quotes = snap.quotes || [];
+  const pressed = (snap.events || []).find((e) => e.type === 'PRESSED_FOR_ITEMIZATION');
+  if (!pressed) return null;
+
+  const bundled = quotes.find((q) => q.clinicName === pressed.clinicName && q.outcome === 'BUNDLED');
+  const revealed = quotes.find((q) => q.clinicName === pressed.clinicName && q.citable);
+  if (!bundled || !revealed) return null;
+
+  const hidden = money(revealed.total) - money(bundled.total);
+  if (hidden <= 0) return null;
+  return `${pressed.clinicName} quoted $${money(bundled.total)} up front, then added $${hidden} in fees once we asked for the full breakdown.`;
+}
+
+/** Most recent negotiation exchange, for the streaming chat bubbles. */
+function buildDialogue(snap) {
+  const events = snap.events || [];
+  const cite = [...events].reverse().find(
+    (e) => e.type === 'LEVERAGE_ALLOWED' || e.type === 'LEVERAGE_REFUSED'
+  );
+  if (!cite) return null;
+
+  const reply = [...events].reverse().find(
+    (e) => (e.type === 'PRICE_MOVED' || e.type === 'PRICE_HELD') && e.clinicName === cite.clinicName
+  );
+
+  return {
+    agent: cite.detail,
+    clinic: reply ? reply.detail : 'Checking with billing…',
+  };
+}
 
 /* ─── Typewriter hook ────────────────────────── */
 function useTypewriter(text, active, speed = 24) {
@@ -49,18 +136,22 @@ function useTypewriter(text, active, speed = 24) {
 import { useSpring } from 'framer-motion';
 
 function CountUp({ target }) {
-  const [val, setVal] = useState(0);
+  const goal = Math.floor(Number(target) || 0);
+  const [val, setVal] = useState(goal);
   const springValue = useSpring(0, { stiffness: 50, damping: 20 });
 
   useEffect(() => {
-    springValue.set(target || 0);
-  }, [target, springValue]);
+    // Subscribe before setting — set() can emit immediately, and a listener
+    // attached afterwards misses the only change event.
+    const unsubscribe = springValue.on('change', (latest) => setVal(Math.floor(latest)));
+    springValue.set(goal);
 
-  useEffect(() => {
-    return springValue.on('change', (latest) => {
-      setVal(Math.floor(latest));
-    });
-  }, [springValue]);
+    // The animation is decoration; the number is the product. If the spring
+    // never emits, land on the real value anyway rather than showing $0.
+    const settle = setTimeout(() => setVal(goal), 1200);
+
+    return () => { unsubscribe(); clearTimeout(settle); };
+  }, [goal, springValue]);
 
   return <>{val.toLocaleString()}</>;
 }
@@ -249,12 +340,15 @@ export default function Workspace() {
     { label: 'Facility', value: 'Outpatient Freestanding' },
   ]);
   const [editingSpec, setEditingSpec] = useState(null);
+  const [snapshot, setSnapshot] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [honestyBanner, setHonestyBanner] = useState(null);
+  const [bluffBusy, setBluffBusy] = useState(false);
   const timeouts = useRef([]);
   const logsEndRef = useRef(null);
-
-  // Pick providers for this run
-  const pool = PROVIDER_POOLS[runIndex % PROVIDER_POOLS.length];
-  const maxPrice = Math.max(...pool.map(p => p.initial));
+  const unsubRef = useRef(null);
+  const runIdRef = useRef(null);
 
   const clearTimeouts = () => {
     timeouts.current.forEach(clearTimeout);
@@ -267,11 +361,37 @@ export default function Workspace() {
     return t;
   };
 
-  const updateProvider = (id, updates) =>
-    setProviders(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  // Tear the stream down if the user navigates away mid-run.
+  useEffect(() => () => { unsubRef.current?.(); clearTimeouts(); }, []);
 
-  const addLog = (time, clinic, action, bid) =>
-    setLogs(prev => [{ id: Date.now() + Math.random(), time, clinic, action, bid }, ...prev]);
+  const specValue = (label) => specItems.find(s => s.label === label)?.value || '';
+
+  /** One place that turns a backend snapshot into everything the UI renders. */
+  const applySnapshot = useCallback((snap) => {
+    setSnapshot(snap);
+    const winnerName = snap.winner?.clinicName || null;
+    setProviders(buildProviders(snap, winnerName));
+    setLogs(buildLogs(snap));
+    setRedFlag(buildRedFlag(snap));
+    setSavings(money(snap.savingsVsNaive));
+
+    const running = snap.state === 'SHOPPING' || snap.state === 'NEGOTIATING';
+    setDialogue(running ? buildDialogue(snap) : null);
+
+    const lastWithClinic = [...(snap.events || [])].reverse().find(e => e.clinicName);
+    setActiveFocus(running && lastWithClinic ? lastWithClinic.clinicName : null);
+
+    if (!running && (snap.state === 'READY' || snap.state === 'PARTIAL' || snap.state === 'FAILED')) {
+      setStage(3);
+      setBusy(false);
+    }
+  }, []);
+
+  const refreshSnapshot = useCallback(async (id) => {
+    const snap = await getRun(id);
+    applySnapshot(snap);
+    return snap;
+  }, [applySnapshot]);
 
   const handleParseOrder = () => {
     setIsParsing(true);
@@ -283,73 +403,63 @@ export default function Workspace() {
     doStart();
   };
 
-  const doStart = () => {
+  const doStart = async () => {
+    clearTimeouts();
+    unsubRef.current?.();
+    unsubRef.current = null;
+
     setStage(2);
-    runSimulation();
+    setBusy(true);
+    setError(null);
+    setHonestyBanner(null);
+    setLogs([]); setProviders([]); setSavings(0);
+    setRedFlag(null); setActiveFocus(null); setDialogue(null); setSnapshot(null);
+
+    try {
+      const started = await startRun({
+        procedureName: specValue('Procedure') || 'MRI',
+        bodyPart: specValue('Body Part'),
+        contrast: /without/i.test(specValue('Contrast')) ? false : true,
+        location: 'Peterborough',
+        leverageEnabled: true,
+      });
+      runIdRef.current = started.id;
+
+      unsubRef.current = subscribeRunEvents(started.id, {
+        onEvent: () => { refreshSnapshot(started.id).catch(e => setError(e.message)); },
+        onDone: () => { refreshSnapshot(started.id).catch(e => setError(e.message)); },
+        // EventSource reconnects on its own; poll once so the UI never stalls.
+        onError: () => { refreshSnapshot(started.id).catch(() => {}); },
+      });
+
+      await refreshSnapshot(started.id);
+    } catch (e) {
+      setError(e.message || 'Could not reach the negotiation service.');
+      setBusy(false);
+      setStage(1);
+    }
   };
 
-  const runSimulation = () => {
-    clearTimeouts();
-    const p = PROVIDER_POOLS[runIndex % PROVIDER_POOLS.length];
-    setLogs([]); setSavings(0); setRedFlag(null); setActiveFocus(null); setDialogue(null);
-    setProviders(p.map((pr, i) => ({
-      id: i + 1, name: pr.name, initialPrice: null, price: null,
-      status: 'Calling...', statusType: 'active',
-      _initial: pr.initial, _final: pr.final, _flag: pr.flag,
-    })));
-    addLog('10:58', 'System', 'Parsed spec, queried 3 providers', '—');
-
-    const timeline = [
-      { delay: 1400, fn: () => {
-        const flagP = p.find(x => x.flag);
-        const flagIdx = p.indexOf(flagP);
-        updateProvider(flagIdx + 1, { initialPrice: flagP.initial, price: flagP.initial, status: 'Over Benchmark', statusType: 'warn' });
-        setRedFlag(`${flagP.name} ($${flagP.initial}) is ${Math.round((flagP.initial / p[0].initial - 1) * 100)}% above Regional Outpatient Benchmark.`);
-        addLog('11:00', flagP.name, 'Default Chargemaster Quote', `$${flagP.initial}.00`);
-      }},
-      { delay: 2400, fn: () => {
-        updateProvider(2, { initialPrice: p[1].initial, price: p[1].initial, status: 'Awaiting Response', statusType: 'pending' });
-        addLog('11:01', p[1].name, 'Initial Quote Received', `$${p[1].initial}.00`);
-      }},
-      { delay: 3400, fn: () => {
-        updateProvider(1, { initialPrice: p[0].initial, price: p[0].initial, status: 'Awaiting Response', statusType: 'pending' });
-        addLog('11:02', p[0].name, 'Initial Quote Received', `$${p[0].initial}.00`);
-      }},
-      { delay: 4400, fn: () => {
-        setActiveFocus(1);
-        updateProvider(1, { status: 'Agent Negotiating', statusType: 'active' });
-        setDialogue({
-          agent: `Doctor ordered freestanding outpatient diagnostic. Will you match our standard network ceiling fee?`,
-          clinic: `We can waive the technical component premium, lowering the total scan fee to $${p[0].final}.`,
-        });
-      }},
-      { delay: 6600, fn: () => {
-        updateProvider(1, { price: p[0].final, status: 'Deal Accepted', statusType: 'complete' });
-        addLog('11:04', p[0].name, 'Matched Outpatient Limit', `$${p[0].final}.00`);
-        setSavings(p[0].initial - p[0].final + (p[1].initial - p[1].final));
-      }},
-      { delay: 7600, fn: () => {
-        setActiveFocus(2);
-        updateProvider(2, { status: 'Agent Negotiating', statusType: 'active' });
-        setDialogue({
-          agent: `We have a competing offer at $${p[0].final}. Can you waive the premium cap to match?`,
-          clinic: `We can't match $${p[0].final}, but we can do $${p[1].final} as a final counter.`,
-        });
-      }},
-      { delay: 9800, fn: () => {
-        updateProvider(2, { price: p[1].final, status: 'Final Counter', statusType: 'pending' });
-        addLog('11:05', p[1].name, 'Waived Premium Cap', `$${p[1].final}.00`);
-      }},
-      { delay: 11200, fn: () => {
-        setActiveFocus(null); setDialogue(null); setStage(3);
-      }},
-    ];
-
-    timeline.forEach(e => addTimeout(e.fn, e.delay));
+  /** Honesty demo: ask the gate to cite a price no clinic ever quoted. */
+  const runBluffCheck = async () => {
+    if (!runIdRef.current || bluffBusy) return;
+    setBluffBusy(true);
+    try {
+      const res = await tryBluff(runIdRef.current, { claimedTotal: 200 });
+      setHonestyBanner(res);
+      await refreshSnapshot(runIdRef.current);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBluffBusy(false);
+    }
   };
 
   const resetAll = () => {
     clearTimeouts();
+    unsubRef.current?.();
+    unsubRef.current = null;
+    runIdRef.current = null;
     setStage(1);
     setProviders([]);
     setLogs([]);
@@ -359,20 +469,36 @@ export default function Workspace() {
     setActiveFocus(null);
     setParseDone(false);
     setIsParsing(false);
+    setSnapshot(null);
+    setError(null);
+    setHonestyBanner(null);
+    setBusy(false);
     setRunIndex(prev => prev + 1);
   };
 
-  const pool2 = providers.length > 0 ? providers : [];
-  const maxP = pool.map(p => p.initial);
-  const highestPrice = Math.max(...maxP, 1);
+  // Scale the price bars against the highest opening quote actually seen.
+  const highestPrice = Math.max(
+    money(snapshot?.openingHigh),
+    ...providers.map(p => p.initialPrice || 0),
+    1
+  );
+  const openingHigh = money(snapshot?.openingHigh);
+  const savingsPercent = openingHigh > 0 && snapshot?.winner
+    ? Math.max(0, Math.round((1 - money(snapshot.winner.total) / openingHigh) * 100))
+    : 0;
 
   const reportText = stage === 3 && providers.length > 0
-    ? `HaggleAI Negotiation Report\n${'─'.repeat(40)}\nProcedure: ${specItems[0]?.value} · ${specItems[1]?.value}\n\n` +
-      providers
+    ? `HaggleAI Negotiation Report\n${'─'.repeat(40)}\nProcedure: ${specValue('Procedure')} · ${specValue('Body Part')}\n\n` +
+      [...providers]
         .sort((a, b) => (a.price || 9999) - (b.price || 9999))
-        .map((p, i) => `RANK ${i + 1}: ${p.name} — $${p.price}${p.statusType === 'warn' ? ' [FLAGGED: Over Benchmark]' : i === 0 ? ' ← BEST DEAL' : ''}`)
+        .map((p, i) => `RANK ${i + 1}: ${p.name} — ${p.price ? `$${p.price}` : p.status}${p.statusType === 'warn' ? ' [FLAGGED: no breakdown]' : i === 0 ? ' ← BEST DEAL' : ''}`)
         .join('\n') +
-      `\n\nSavings vs. chargemaster: -62% · Audit log: ${logs.length} events`
+      `\n\nOpening market: $${money(snapshot?.openingLow)}–$${openingHigh}` +
+      `\nSaved vs calling one clinic at random: $${savings}` +
+      (snapshot?.biggestConcessionClinic
+        ? `\nLargest single concession: $${money(snapshot.biggestConcession)} (${snapshot.biggestConcessionClinic})`
+        : '') +
+      `\nEvery cited figure verified against the quote store · ${logs.length} audit events`
     : '';
 
   return (
@@ -398,7 +524,7 @@ export default function Workspace() {
           <span style={{ color: 'rgba(26,13,30,0.15)', margin: '0 4px' }}>/</span>
           <span style={{ fontSize: '0.82rem', color: 'rgba(26,13,30,0.85)' }}>Agent Workspace</span>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'rgba(26,13,30,0.85)', marginLeft: '6px' }}>
-            run #{runIndex + 1} · {pool[0]?.name.split(' ')[0]} pool
+            run #{runIndex + 1}{runIdRef.current ? ` · ${runIdRef.current.slice(0, 8)}` : ''}
           </span>
         </div>
 
@@ -628,7 +754,7 @@ export default function Workspace() {
               <div style={{ fontSize: '0.62rem', color: 'rgba(26,13,30,0.85)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '9px' }}>
                 Realtime Quote Board
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(88px, 1fr))', gap: '7px' }}>
                 {providers.map(p => {
                   const badge = BADGE_STYLE[p.statusType] || BADGE_STYLE.pending;
                   return (
@@ -738,6 +864,51 @@ export default function Workspace() {
             </AnimatePresence>
           </div>
 
+          {/* Honesty check result — the gate refusing a fabricated figure */}
+          <AnimatePresence>
+            {honestyBanner && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                style={{
+                  padding: '11px 13px',
+                  background: honestyBanner.allowed ? 'rgba(16,185,129,0.06)' : 'rgba(166,139,196,0.08)',
+                  border: `1px solid ${honestyBanner.allowed ? 'rgba(16,185,129,0.2)' : 'rgba(166,139,196,0.3)'}`,
+                  borderRadius: 'var(--radius-md)', display: 'flex', gap: '9px', alignItems: 'flex-start',
+                  color: honestyBanner.allowed ? 'var(--accent-emerald)' : 'var(--accent-indigo)',
+                  fontSize: '0.78rem', lineHeight: 1.5,
+                }}
+              >
+                <Shield size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
+                <div>
+                  <strong>Honesty check — {honestyBanner.allowed ? 'ALLOWED' : 'REFUSED'}</strong>
+                  <div style={{ marginTop: '3px', color: 'rgba(26,13,30,0.7)' }}>{honestyBanner.demoNote}</div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Errors surface here rather than failing silently */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                style={{
+                  padding: '11px 13px',
+                  background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.2)',
+                  borderRadius: 'var(--radius-md)', display: 'flex', gap: '9px', alignItems: 'flex-start',
+                  color: 'var(--accent-rose)', fontSize: '0.78rem', lineHeight: 1.5,
+                }}
+              >
+                <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
+                <div>{error}</div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Playback row */}
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -747,12 +918,31 @@ export default function Workspace() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', color: 'rgba(26,13,30,0.85)' }}>
               <PlayCircle size={13} color="var(--accent-indigo)" />
-              {stage === 2 ? 'Autonomous negotiation running…' : `Run #${runIndex + 1} complete`}
+              {stage === 2
+                ? (snapshot?.status || 'Autonomous negotiation running…')
+                : stage === 3 ? `Run #${runIndex + 1} complete` : 'Idle'}
             </div>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {[stage === 2 && (
-                <span key="live" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--accent-emerald)', fontWeight: 700 }}>LIVE</span>
-              )]}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              {stage === 2 && (
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--accent-emerald)', fontWeight: 700 }}>LIVE</span>
+              )}
+              {runIdRef.current && stage >= 2 && (
+                <button
+                  onClick={runBluffCheck}
+                  disabled={bluffBusy}
+                  title="Ask the agent to cite a price no clinic quoted — the gate should refuse"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '5px',
+                    padding: '5px 11px', background: 'rgba(166,139,196,0.1)',
+                    border: '1px solid rgba(166,139,196,0.28)', borderRadius: 'var(--radius-pill)',
+                    color: 'var(--accent-indigo)', fontSize: '0.7rem', fontWeight: 600,
+                    cursor: bluffBusy ? 'wait' : 'pointer', opacity: bluffBusy ? 0.6 : 1,
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <Shield size={11} /> {bluffBusy ? 'Checking…' : 'Try a fake price'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -783,7 +973,7 @@ export default function Workspace() {
             background: 'rgba(16,185,129,0.04)', border: '1px solid rgba(16,185,129,0.12)',
             borderRadius: 'var(--radius-lg)',
           }}>
-            {stage === 3 ? <SavingsArc percent={62} /> : (
+            {stage === 3 ? <SavingsArc percent={savingsPercent} /> : (
               <div style={{ width: '128px', height: '128px', borderRadius: '50%', border: '8px solid rgba(26,13,30,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <span style={{ fontSize: '0.72rem', color: 'rgba(26,13,30,0.85)' }}>—</span>
               </div>
@@ -793,11 +983,13 @@ export default function Workspace() {
                 Total Negotiated Savings
               </div>
               <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.8rem', fontWeight: 800, color: '#1a0d1e', lineHeight: 1, marginBottom: '3px' }}>
-                ${stage === 3 ? <CountUp target={savings || 947} /> : '---'}
-                {stage === 3 && <span style={{ fontSize: '0.9rem', color: 'var(--accent-emerald)', marginLeft: '8px' }}>−62%</span>}
+                ${stage === 3 ? <CountUp target={savings} /> : '---'}
+                {stage === 3 && savingsPercent > 0 && <span style={{ fontSize: '0.9rem', color: 'var(--accent-emerald)', marginLeft: '8px' }}>−{savingsPercent}%</span>}
               </div>
               <div style={{ fontSize: '0.7rem', color: 'rgba(26,13,30,0.85)', lineHeight: 1.4 }}>
-                vs. avg. hospital chargemaster of ${(pool[2]?.initial || 890)}
+                {openingHigh > 0
+                  ? `vs. the highest opening quote of $${openingHigh}`
+                  : 'vs. calling one clinic at random'}
               </div>
             </div>
           </div>
@@ -832,7 +1024,7 @@ export default function Workspace() {
                         </div>
                       </div>
                       <div style={{ fontFamily: 'var(--font-mono)', fontSize: i === 0 ? '1.1rem' : '1rem', fontWeight: 800, color: i === 0 ? 'var(--accent-emerald)' : p.statusType === 'warn' ? 'var(--accent-rose)' : 'rgba(26,13,30,0.7)' }}>
-                        ${p.price}
+                        {p.price ? `$${p.price}` : <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>{p.status}</span>}
                       </div>
                     </div>
                     {i === 0 && p.price && (
