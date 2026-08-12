@@ -1,69 +1,106 @@
 import React from 'react';
-import { Hexagon } from 'lucide-react';
+import Topography from './Topography/Topography';
 
 export default function Footer() {
   return (
-    <footer style={{ borderTop: '1px solid var(--border-subtle)', padding: '64px 0 32px', marginTop: '100px' }}>
-      <div className="container" style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: '32px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Hexagon size={24} color="var(--accent-indigo)" fill="rgba(99, 102, 241, 0.2)" />
-              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, letterSpacing: '1px' }}>HaggleAI</span>
-            </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '250px' }}>
-              The autonomous medical price negotiation layer. Deploy agents to secure the lowest cash pay rate.
-            </p>
-          </div>
-          
-          <div>
-            <h4 style={{ marginBottom: '16px', fontSize: '0.9rem' }}>Product</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              <a href="/workspace">Workspace</a>
-              <a href="#">Cookbook</a>
-              <a href="#">Benchmarks</a>
-              <a href="#">Pricing</a>
-            </div>
-          </div>
-          
-          <div>
-            <h4 style={{ marginBottom: '16px', fontSize: '0.9rem' }}>Developers</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              <a href="#">Documentation</a>
-              <a href="#">API Reference</a>
-              <a href="#">Cookbook</a>
-              <a href="#">GitHub</a>
-            </div>
-          </div>
-          
-          <div>
-            <h4 style={{ marginBottom: '16px', fontSize: '0.9rem' }}>Company</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              <a href="#">About</a>
-              <a href="#">Blog</a>
-              <a href="#">Careers</a>
-              <a href="#">Contact</a>
-            </div>
-          </div>
-          
-          <div>
-            <h4 style={{ marginBottom: '16px', fontSize: '0.9rem' }}>Legal</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              <a href="#">Privacy Policy</a>
-              <a href="#">Terms of Service</a>
-            </div>
-          </div>
-        </div>
+    <footer style={{
+      background: '#07070F', // Dark bg for footer looks premium
+      color: '#fff',
+      position: 'relative',
+      overflow: 'hidden',
+      paddingTop: '100px',
+      paddingBottom: '40px',
+    }}>
+      {/* Topography bg — subtle overlay */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.15 }}>
+        <Topography
+          lowColor="#100b2e" midColor="#6366F1" highColor="#8b5cf6"
+          speed={0.15} morphAmount={2.0} morphSpeed={0.03}
+          bands={2.5} thickness={0.02} scale={1.2}
+          pixelSize={1.0} glow={0.5} colorMode="elevation"
+          contrast={2.0} brightness={1.0} fillBands={true}
+          opacity={0.3} grain={true} grainIntensity={0.04}
+          mouseInteraction={true} mouseRadius={0.4} mouseStrength={0.5}
+        />
+      </div>
+      
+      {/* Top glow line */}
+      <div style={{
+        position: 'absolute', top: 0, left: '0', width: '100%', height: '1px',
+        background: 'linear-gradient(to right, transparent, rgba(99,102,241,0.5), transparent)',
+      }} />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '32px' }}>
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-            &copy; 2026 HaggleAI, Inc. All rights reserved.
+      <div style={{
+        maxWidth: '1220px', margin: '0 auto', padding: '0 24px',
+        position: 'relative', zIndex: 1,
+      }}>
+        {/* Mega text */}
+        <div style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 'clamp(3rem, 12vw, 11rem)',
+          fontWeight: 800,
+          letterSpacing: '-0.04em',
+          lineHeight: 0.85,
+          color: 'rgba(255,255,255,0.03)',
+          WebkitTextStroke: '1px rgba(255,255,255,0.05)',
+          userSelect: 'none',
+          marginBottom: '60px',
+          display: 'flex',
+          justifyContent: 'center'
+        }}>
+          HaggleAI
+        </div>
+        
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          flexWrap: 'wrap', gap: '20px',
+          borderTop: '1px solid rgba(255,255,255,0.1)',
+          paddingTop: '30px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(99,102,241,0.2)" stroke="#6366F1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5" />
+            </svg>
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em' }}>
+              HaggleAI
+            </span>
+            <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
+            <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-mono)' }}>
+              Built at a hackathon.
+            </span>
           </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            <div className="status-dot pulse"></div>
-            All Systems Operational
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
+            {/* Socials */}
+            <div style={{ display: 'flex', gap: '16px' }}>
+              {['Twitter', 'GitHub', 'Discord'].map((s, i) => (
+                <a key={i} href="#" style={{
+                  color: 'rgba(255,255,255,0.4)',
+                  fontSize: '0.8rem',
+                  fontFamily: 'var(--font-mono)',
+                  textDecoration: 'none',
+                  transition: 'color 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
+                >
+                  {s}
+                </a>
+              ))}
+            </div>
+
+            <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.2)' }} />
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="status-dot pulse" style={{ width: '6px', height: '6px', background: '#10B981', boxShadow: '0 0 8px rgba(16,185,129,0.7)' }} />
+              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-mono)' }}>
+                All Systems Operational
+              </span>
+            </div>
+            <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
+            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
+              © 2026
+            </span>
           </div>
         </div>
       </div>

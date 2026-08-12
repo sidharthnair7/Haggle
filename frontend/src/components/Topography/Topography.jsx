@@ -58,6 +58,14 @@ float bez(float t, vec4 c) {
 }
 
 float field(vec2 uv) {
+  // Curl-like flow-field displacement
+  float t = iTime * 0.15;
+  vec2 warp = vec2(
+    sin(uv.y * 4.0 + t) * cos(uv.x * 3.0 - t),
+    cos(uv.x * 5.0 - t) * sin(uv.y * 4.0 + t)
+  ) * 0.12;
+  uv += warp;
+
   vec2 a = vec2(bez(uv.x, uCtrlA), bez(uv.x, uCtrlB));
   vec2 b = vec2(bez(uv.y, uCtrlC), bez(uv.y, uCtrlD));
   return distance(a, b);
