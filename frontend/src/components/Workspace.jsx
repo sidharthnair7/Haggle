@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Check, AlertTriangle, UploadCloud, Edit2,
   PlayCircle, Shield, FileText, Activity, Bot, User,
-  BarChart2, RefreshCw, ChevronRight, Mic, Copy, Download
+  BarChart2, RefreshCw, ChevronRight, Copy, Download
 } from 'lucide-react';
 import './Workspace.css';
 import { startRun, getRun, subscribeRunEvents, tryBluff } from '../api';
@@ -737,7 +737,6 @@ export default function Workspace() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               }}
             >
-              <Mic size={14} />
               Confirm Spec & Query Clinics
             </button>
           </div>
