@@ -15,6 +15,7 @@ public class AiStatusController {
     private final AiSettings settings;
     private final OpenAiChatSupport openAi;
     private final WatsonxClient watsonx;
+    private final SpokenSummaryService spokenSummary;
 
     @GetMapping("/status")
     public Map<String, Object> status() {
@@ -23,7 +24,7 @@ public class AiStatusController {
                 "watsonxReady", watsonx.available(),
                 "clinicAgents", openAi.available() ? "llm+floor-guard" : "deterministic-fallback",
                 "negotiator", openAi.available() ? "llm+leverage-gate" : "deterministic+leverage-gate",
-                "spokenSummary", watsonx.available() ? "watsonx" : "deterministic-fallback",
+                "spokenSummary", spokenSummary.providerLabel(),
                 "hint", "Set OPENAI_API_KEY and/or WATSONX_API_KEY + WATSONX_PROJECT_ID in .env, then restart."
         );
     }
