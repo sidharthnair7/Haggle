@@ -108,23 +108,32 @@ function buildRedFlag(snap) {
 function buildLiveByClinic(snap) {
   const turns = snap.conversation || [];
   const byClinic = {};
+  const names = [...new Set(turns.map((t) => t.clinicName))];
 
-  for (const turn of turns) {
-    const entry = byClinic[turn.clinicName] || { agent: null, clinic: null, lastId: -1 };
-    if (turn.speaker === 'CLINIC') {
-      // Pair the reply with the agent line that prompted it — never invent one.
-      const prompt = [...turns].reverse().find(
-        (t) => t.speaker === 'AGENT' && t.clinicName === turn.clinicName && t.id < turn.id
+  for (const name of names) {
+    const mine = turns.filter((t) => t.clinicName === name);
+    const lastClinic = [...mine].reverse().find((t) => t.speaker === 'CLINIC');
+
+    if (lastClinic) {
+      // Anchor on the clinic's most recent reply and pair it with whatever the
+      // agent said to prompt it.
+      //
+      // Anchoring on the newest turn instead looks right until the agent's
+      // closing line lands ("$495 — got it, thanks"). That line never gets a
+      // reply, so it replaced the exchange and the card showed the agent
+      // talking to nobody, with the quote itself nowhere on screen.
+      const prompt = [...mine].reverse().find(
+        (t) => t.speaker === 'AGENT' && t.id < lastClinic.id
       );
-      entry.agent = prompt ? prompt.text : entry.agent;
-      entry.clinic = turn.text;
-    } else if (turn.id > entry.lastId) {
-      // A fresh agent line opens a new exchange; the reply hasn't landed yet.
-      entry.agent = turn.text;
-      entry.clinic = null;
+      byClinic[name] = { agent: prompt ? prompt.text : null, clinic: lastClinic.text };
+      continue;
     }
-    entry.lastId = Math.max(entry.lastId, turn.id);
-    byClinic[turn.clinicName] = entry;
+
+    // Nothing back yet — the opening ask is genuinely still hanging.
+    const lastAgent = [...mine].reverse().find((t) => t.speaker === 'AGENT');
+    if (lastAgent) {
+      byClinic[name] = { agent: lastAgent.text, clinic: null };
+    }
   }
 
   return byClinic;
@@ -436,51 +445,35 @@ function SpokenTurn({ turn, clinicName, playing, onFinished, blocked }) {
   );
 }
 
-/** Plays a clinic's transcript as a phone call: one speaker finishes, then the other. */
 /**
- * @param watched   true if the user has already watched this call play out
- * @param onWatched called once the whole call has been revealed
+ * The expanded call for one clinic.
  *
- * The component unmounts when the card collapses, so without `watched` every
- * reopen replays the call from line one. A transcript is a record you go back
- * to — it should only animate the first time through.
+ * <p>Opening a call joins it where it already is — everything said before you
+ * looked appears at once, and only lines that arrive *while you're watching*
+ * type themselves out. That's how a live log behaves: it doesn't rewind and
+ * replay the last two minutes because you happened to glance over, and it means
+ * switching between clinics mid-run never costs you the current state.
  */
-function ClinicCallLog({ turns, clinicName, watched, onWatched }) {
-  const [shown, setShown] = useState(0);
-  const [live, setLive] = useState(true);
-  const shownRef = useRef(0);
-  const liveRef = useRef(true);
+function ClinicCallLog({ turns, clinicName }) {
+  const [shown, setShown] = useState(turns.length);
+  const [live, setLive] = useState(false);
+  const shownRef = useRef(turns.length);
+  const liveRef = useRef(false);
   shownRef.current = shown;
   liveRef.current = live;
 
+  // Switching clinics: catch up to whatever that call is at right now.
   useEffect(() => {
-    if (watched) {
-      shownRef.current = turns.length;
-      liveRef.current = false;
-      setShown(turns.length);
-      setLive(false);
-      return;
-    }
-    shownRef.current = 0;
-    liveRef.current = true;
-    setShown(turns.length ? 1 : 0);
-    setLive(true);
+    shownRef.current = turns.length;
+    liveRef.current = false;
+    setShown(turns.length);
+    setLive(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicName]);
 
+  // New lines land while the card is open — those are the ones worth animating.
   useEffect(() => {
-    if (turns.length > 0 && shown >= turns.length && !live) {
-      onWatched?.(clinicName);
-    }
-  }, [shown, live, turns.length, clinicName, onWatched]);
-
-  useEffect(() => {
-    if (!turns.length) return;
-    if (shownRef.current === 0) {
-      setShown(1);
-      setLive(true);
-      return;
-    }
-    if (!liveRef.current && turns.length > shownRef.current) {
+    if (turns.length > shownRef.current && !liveRef.current) {
       setShown((n) => n + 1);
       setLive(true);
     }
@@ -790,7 +783,6 @@ export default function Workspace() {
     unsubRef.current = null;
     runIdRef.current = null;
     setUploadNote(null);
-    watchedCallsRef.current = new Set();
     setExpandedClinic(null);
     setStage(1);
     setProviders([]);
@@ -807,11 +799,6 @@ export default function Workspace() {
     setBusy(false);
     setRunIndex(prev => prev + 1);
   };
-
-  // Which calls the user has already watched play out, so reopening one shows
-  // it whole instead of replaying from the first line.
-  const watchedCallsRef = useRef(new Set());
-  const markCallWatched = useCallback((name) => { watchedCallsRef.current.add(name); }, []);
 
   /** Every spoken line for one clinic, in order. */
   const turnsFor = (clinicName) =>
@@ -1276,8 +1263,6 @@ export default function Workspace() {
                             key={p.name}
                             turns={turnsFor(p.name)}
                             clinicName={p.name}
-                            watched={watchedCallsRef.current.has(p.name)}
-                            onWatched={markCallWatched}
                           />
                         </motion.div>
                       )}

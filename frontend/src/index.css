@@ -794,13 +794,7 @@ img, video { display: block; max-width: 100%; }
   align-items: center;
   justify-content: center;
   background: var(--bg-primary);
-}
-
-.preloader__wipe {
-  position: absolute;
-  inset: 0;
-  background: var(--bg-primary);
-  z-index: 1;
+  will-change: transform;
 }
 
 .preloader__content {
