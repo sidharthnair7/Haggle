@@ -81,7 +81,7 @@ export default function Preloader({ onComplete }) {
               animate={{ opacity: phase !== 'drawing' ? 0.6 : 0, y: phase !== 'drawing' ? 0 : 8 }}
               transition={{ duration: 0.3, delay: 0.1 }}
             >
-              HaggleAI
+              Haggle
             </motion.span>
           </div>
         </motion.div>

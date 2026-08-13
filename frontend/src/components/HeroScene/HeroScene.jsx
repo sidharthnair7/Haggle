@@ -428,7 +428,7 @@ export default function HeroScene() {
       // Agent position
       const agentScreenPos = agentNode.position.clone().project(camera);
       newPositions.push({
-        name: 'HaggleAI Agent',
+        name: 'Haggle Agent',
         x: (agentScreenPos.x * 0.5 + 0.5) * 100,
         y: (-agentScreenPos.y * 0.5 + 0.5) * 100,
         isAgent: true,

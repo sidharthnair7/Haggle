@@ -48,7 +48,7 @@ export default function Footer() {
           display: 'flex',
           justifyContent: 'center'
         }}>
-          HaggleAI
+          Haggle
         </div>
         
         <div style={{
@@ -62,7 +62,7 @@ export default function Footer() {
               <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5" />
             </svg>
             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em' }}>
-              HaggleAI
+              Haggle
             </span>
             <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
             <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-mono)' }}>

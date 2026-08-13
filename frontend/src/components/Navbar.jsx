@@ -85,7 +85,7 @@ export default function Navbar() {
             color: '#111827',
             whiteSpace: 'nowrap',
           }}>
-            HaggleAI
+            Haggle
           </span>
         </a>
 

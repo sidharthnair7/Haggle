@@ -74,7 +74,7 @@ public class NegotiatorAgent {
                 .collect(Collectors.joining("; "));
 
         String system = """
-                You are HaggleAI's negotiator, on the phone with a clinic's billing
+                You are Haggle's negotiator, on the phone with a clinic's billing
                 desk on behalf of a patient paying cash.
 
                 You must only cite a competing total that appears in the catalog.

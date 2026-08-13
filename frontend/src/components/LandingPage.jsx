@@ -133,10 +133,10 @@ function useTypewriter(text, active, speed = 28) {
  * thing to fall apart when someone clicks through.
  */
 const AGENT_LINES = [
-  { text: '> haggleai run --procedure "MRI lumbar spine, no contrast" --near Peterborough', color: 'var(--accent-indigo)', delay: 0 },
+  { text: '> haggle run --procedure "MRI lumbar spine, no contrast" --near Peterborough', color: 'var(--accent-indigo)', delay: 0 },
   { text: '✓ Spec parsed · 5 clinics dialled in parallel', color: '#059669', delay: 1 },
   { text: '', delay: 2 },
-  { text: '  Agent  → "Hi, this is the HaggleAI agent calling for a patient..."', color: 'var(--accent-indigo)', delay: 2 },
+  { text: '  Agent  → "Hi, this is the Haggle agent calling for a patient..."', color: 'var(--accent-indigo)', delay: 2 },
   { text: '  Otonabee Health Scan   "Hold on, is this an AI? Sorry, we don\'t do this."', color: '#e11d48', delay: 3 },
   { text: '  Trent Valley           $460   itemized', color: 'rgba(0,0,0,0.7)', delay: 4 },
   { text: '  Kawartha Imaging       $495   itemized', color: 'rgba(0,0,0,0.7)', delay: 4 },
@@ -843,7 +843,7 @@ export default function LandingPage() {
                 marginLeft: '8px', fontFamily: 'var(--font-mono)', fontSize: '0.72rem',
                 color: 'rgba(0,0,0,0.45)', letterSpacing: '0.05em',
               }}>
-                haggleai — agent runtime v0.1.0
+                haggle — agent runtime v0.1.0
               </span>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
                 {!terminalRunning && (

@@ -331,7 +331,7 @@ function SequentialExchange({ agent, clinic, clinicLabel }) {
           text={agent}
           onDone={() => { if (clinic) setTimeout(() => setClinicReady(true), 420); }}
           color={{ bg: 'rgba(166,139,196,0.12)', border: 'rgba(166,139,196,0.2)', text: 'var(--accent-indigo)' }}
-          label="HaggleAI Agent"
+          label="Haggle Agent"
         />
       </div>
       {clinic && clinicReady && (
@@ -414,7 +414,7 @@ function SpokenTurn({ turn, clinicName, playing, onFinished, blocked }) {
           textTransform: 'uppercase', marginBottom: '3px',
           color: blocked ? 'var(--accent-rose)' : isAgent ? 'var(--accent-indigo)' : 'rgba(26,13,30,0.32)',
         }}>
-          {blocked ? 'Blocked by leverage gate' : isAgent ? 'HaggleAI Agent' : clinicName}
+          {blocked ? 'Blocked by leverage gate' : isAgent ? 'Haggle Agent' : clinicName}
           <span style={{ fontWeight: 500, letterSpacing: 0, textTransform: 'none', opacity: 0.7 }}>
             {' '}· round {turn.round}
           </span>
@@ -843,7 +843,7 @@ export default function Workspace() {
     : 0;
 
   const reportText = stage === 3 && providers.length > 0
-    ? `HaggleAI Negotiation Report\n${'─'.repeat(40)}\nProcedure: ${specValue('Procedure')} · ${specValue('Body Part')}\n\n` +
+    ? `Haggle Negotiation Report\n${'─'.repeat(40)}\nProcedure: ${specValue('Procedure')} · ${specValue('Body Part')}\n\n` +
       [...providers]
         .sort((a, b) => (a.price || 9999) - (b.price || 9999))
         .map((p, i) => `RANK ${i + 1}: ${p.name} — ${p.price ? `$${p.price}` : p.status}${p.statusType === 'warn' ? ' [FLAGGED: no breakdown]' : i === 0 ? ' ← BEST DEAL' : ''}`)
@@ -875,7 +875,7 @@ export default function Workspace() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(166,139,196,0.18)" stroke="#A68BC4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5" />
           </svg>
-          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.88rem', letterSpacing: '0.08em', color: 'rgba(26,13,30,0.9)' }}>HaggleAI</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.88rem', letterSpacing: '0.08em', color: 'rgba(26,13,30,0.9)' }}>Haggle</span>
           <span style={{ color: 'rgba(26,13,30,0.15)', margin: '0 4px' }}>/</span>
           <span style={{ fontSize: '0.82rem', color: 'rgba(26,13,30,0.85)' }}>Agent Workspace</span>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'rgba(26,13,30,0.85)', marginLeft: '6px' }}>

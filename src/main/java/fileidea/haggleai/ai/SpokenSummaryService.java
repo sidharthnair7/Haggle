@@ -26,7 +26,7 @@ import java.util.UUID;
 public class SpokenSummaryService {
 
     private static final String PROMPT = """
-            You are HaggleAI, speaking to a patient on the phone.
+            You are Haggle, speaking to a patient on the phone.
             Write ONE short spoken sentence (max 35 words) announcing the best clinic and price.
             Sound like a person, not a receipt. Do not invent numbers — use only the facts
             below. No markdown.

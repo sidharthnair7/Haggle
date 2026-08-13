@@ -147,7 +147,7 @@ public class NegotiationOrchestrator {
             emit(runId, NegotiationEvent.Type.CLINIC_DIALED, clinic.name(), 1,
                     "Calling " + clinic.name(), null);
             sayAgent(runId, clinic.name(), 1,
-                    "Hi, this is the HaggleAI agent calling for a patient — she's paying "
+                    "Hi, this is the Haggle agent calling for a patient — she's paying "
                             + "cash, so I'm just trying to get a price on "
                             + article(run.getSpec().describe()) + " "
                             + run.getSpec().describe() + ". What're you charging for that?");
