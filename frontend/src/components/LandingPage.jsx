@@ -166,14 +166,27 @@ const AGENT_LINES = [
 
 function LiveTerminal({ running, onComplete }) {
   const { visible, cursor } = useTerminalStream(AGENT_LINES, running, 620);
+  const scrollerRef = useRef(null);
+
   useEffect(() => {
     if (visible.length === AGENT_LINES.length && onComplete) {
       const t = setTimeout(onComplete, 800);
       return () => clearTimeout(t);
     }
   }, [visible.length]);
+
+  // Follow the newest line so the replay doesn't sit at the top behind a
+  // scrollbar while the ranked report is already written below the fold.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [visible.length]);
+
   return (
-    <div style={{
+    <div
+      ref={scrollerRef}
+      style={{
       fontFamily: 'var(--font-mono)',
       fontSize: 'clamp(0.72rem, 1.1vw, 0.85rem)',
       lineHeight: 1.75,

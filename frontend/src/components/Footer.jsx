@@ -64,10 +64,6 @@ export default function Footer() {
             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em' }}>
               Haggle
             </span>
-            <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
-            <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-mono)' }}>
-              Built at a hackathon.
-            </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
