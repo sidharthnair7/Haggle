@@ -1034,3 +1034,52 @@ img, video { display: block; max-width: 100%; }
     opacity: 1;
   }
 }
+
+/* ─────────────────────────────────────────────
+   WORKSPACE RESPONSIVE LAYOUT
+   Three columns side by side is a desktop layout. Below ~1100px they get
+   too narrow to read, and on a phone the fixed 3-up grid overflows the
+   viewport and overlaps. Stack instead.
+───────────────────────────────────────────── */
+.workspace-grid {
+  grid-template-columns: repeat(3, 1fr);
+  margin: 20px 24px;
+}
+
+@media (max-width: 1100px) {
+  .workspace-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .workspace-grid {
+    grid-template-columns: 1fr;
+    margin: 12px;
+    gap: 12px;
+    background: transparent;
+    border: none;
+  }
+  /* Each stage becomes its own card once stacked. */
+  .workspace-grid > div {
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(26, 13, 30, 0.08);
+    /* Dimming an off-stage column reads as "later" side by side, but as
+       "broken" when it's the only thing on screen. */
+    opacity: 1 !important;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   LANDING PAGE — MOBILE
+───────────────────────────────────────────── */
+@media (max-width: 620px) {
+  /* Three equal tabs don't fit on a phone; let them wrap to two rows
+     instead of pushing "3 · Ranked Results" off the right edge. */
+  .demo-tabs {
+    flex-wrap: wrap;
+  }
+  .demo-tabs > div {
+    flex: 1 0 45% !important;
+  }
+}

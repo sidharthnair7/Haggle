@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
 import Lenis from 'lenis'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
@@ -13,6 +13,15 @@ import Preloader from './components/Preloader'
 
 // Register GSAP plugins
 gsap.registerPlugin(ScrollTrigger)
+
+/**
+ * The workspace is a full-height tool, not a marketing page — a landing-page
+ * footer under it just adds dead space below the three columns.
+ */
+function SiteFooter() {
+  const { pathname } = useLocation()
+  return pathname.startsWith('/workspace') ? null : <Footer />
+}
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -95,7 +104,7 @@ function App() {
             <Route path="/workspace" element={<Workspace />} />
           </Routes>
         </div>
-        <Footer />
+        <SiteFooter />
       </Router>
     </ErrorBoundary>
   )

@@ -580,12 +580,11 @@ export default function Workspace() {
         </div>
       </header>
 
-      {/* ─── 3-COLUMN GRID ─── */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+      {/* ─── 3-COLUMN GRID (stacks on narrow screens — see .workspace-grid) ─── */}
+      <div className="workspace-grid" style={{
+        display: 'grid',
         gap: '1px', flex: 1,
         background: 'rgba(26,13,30,0.04)',
-        margin: '20px 24px',
         borderRadius: 'var(--radius-lg)',
         overflow: 'hidden',
         border: '1px solid rgba(26,13,30,0.07)',

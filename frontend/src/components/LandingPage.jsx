@@ -62,7 +62,13 @@ function LineReveal({ children, delay = 0 }) {
    TERMINAL STREAM HOOK
    Streams an array of log lines with realistic delays
 ───────────────────────────────────────────────────── */
-function useTerminalStream(lines, active, baseDelay = 320) {
+/**
+ * Paces the log by each line's `delay` step rather than its index, so related
+ * lines (the five clinic quotes, say) land together and there's a real beat
+ * between phases. Streaming at a flat rate per line reads as a wall of text
+ * arriving at once — the pauses are what make it legible.
+ */
+function useTerminalStream(lines, active, stepMs = 620) {
   const [visible, setVisible] = useState([]);
   const [cursor, setCursor] = useState(true);
   const timeouts = useRef([]);
@@ -72,10 +78,19 @@ function useTerminalStream(lines, active, baseDelay = 320) {
     timeouts.current = [];
     setVisible([]);
     if (!active) return;
-    lines.forEach((line, i) => {
+
+    let groupIndex = 0;
+    let lastStep = null;
+    lines.forEach((line) => {
+      const step = line.delay ?? 0;
+      // Small stagger inside a group so a burst doesn't snap in all at once.
+      groupIndex = step === lastStep ? groupIndex + 1 : 0;
+      lastStep = step;
+
+      const at = step * stepMs + groupIndex * 130;
       const t = setTimeout(() => {
         setVisible(prev => [...prev, line]);
-      }, baseDelay * i + (i > 0 ? Math.random() * 140 : 0));
+      }, at);
       timeouts.current.push(t);
     });
     return () => timeouts.current.forEach(clearTimeout);
@@ -150,7 +165,7 @@ const AGENT_LINES = [
 ];
 
 function LiveTerminal({ running, onComplete }) {
-  const { visible, cursor } = useTerminalStream(AGENT_LINES, running, 310);
+  const { visible, cursor } = useTerminalStream(AGENT_LINES, running, 620);
   useEffect(() => {
     if (visible.length === AGENT_LINES.length && onComplete) {
       const t = setTimeout(onComplete, 800);
@@ -382,15 +397,18 @@ function InteractiveDemo() {
     22
   );
 
+  // Pacing: each stage needs long enough to be read, not just seen. The quotes
+  // arriving and then moving is the whole point of stage 2 — rushing past it
+  // leaves the viewer with three panels they never actually looked at.
   const handleParse = () => {
     setParsed(true);
-    setTimeout(() => setStep(1), 1200);
+    setTimeout(() => setStep(1), 1800);
   };
 
   const handleCalling = () => {
     setStep(1);
-    setTimeout(() => setCallingDone(true), 3500);
-    setTimeout(() => setStep(2), 4200);
+    setTimeout(() => setCallingDone(true), 5200);
+    setTimeout(() => setStep(2), 6400);
   };
 
   const reset = () => {
@@ -412,12 +430,14 @@ function InteractiveDemo() {
           // Parsing phase
           if (step === 0 && !parsed) {
             setParsed(true);
-            setTimeout(() => setStep(1), 1200);
+            setTimeout(() => setStep(1), 1800);
           }
         } else if (progress < 0.66) {
           if (step === 1 && !callingDone) {
             setCallingDone(true);
-            setTimeout(() => setStep(2), 700);
+            // Scrolling past shouldn't skip the negotiation — this was 700ms,
+            // which meant the quotes appeared and resolved in one blink.
+            setTimeout(() => setStep(2), 2600);
           }
         }
       },
@@ -435,8 +455,8 @@ function InteractiveDemo() {
       borderRadius: 'var(--radius-xl)',
       overflow: 'hidden',
     }}>
-      {/* Header tabs */}
-      <div style={{
+      {/* Header tabs — .demo-tabs lets these wrap instead of overflowing on phones */}
+      <div className="demo-tabs" style={{
         display: 'flex', borderBottom: '1px solid rgba(0,0,0,0.06)',
         background: 'rgba(0,0,0,0.02)',
       }}>
@@ -973,7 +993,7 @@ export default function LandingPage() {
           background: 'linear-gradient(to right, transparent, rgba(99,102,241,0.25), transparent)',
         }} />
         {/* ambient */}
-        <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', width: '600px', height: '300px', background: 'radial-gradient(ellipse, rgba(99,102,241,0.12) 0%, transparent 65%)', filter: 'blur(60px)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', width: 'min(600px, 100%)', height: '300px', background: 'radial-gradient(ellipse, rgba(99,102,241,0.12) 0%, transparent 65%)', filter: 'blur(60px)', pointerEvents: 'none' }} />
 
         <div style={{ maxWidth: '720px', margin: '0 auto', padding: '0 24px', textAlign: 'center', position: 'relative' }}>
           <motion.div
