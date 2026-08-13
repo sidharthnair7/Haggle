@@ -126,21 +126,30 @@ function buildDialogue(snap) {
 }
 
 /* ─── Typewriter hook ────────────────────────── */
-function useTypewriter(text, active, speed = 24) {
+// Typing reveals a chunk per tick, not a character. One char per 16ms meant
+// ~60 setState calls a second, each re-rendering a tree with two dozen motion
+// components — that was the stutter in the live column. Same reading speed,
+// about a fifth of the renders, and long lines cost no more than short ones.
+const TYPE_TICK_MS = 45;
+const TYPE_TARGET_MS = 2200;
+
+function useTypewriter(text, active, speed = TYPE_TICK_MS) {
   const [displayed, setDisplayed] = useState('');
   const interval = useRef(null);
   useEffect(() => {
     if (interval.current) clearInterval(interval.current);
     if (!active || !text) { setDisplayed(''); return; }
+    const ticks = Math.max(1, Math.round(TYPE_TARGET_MS / speed));
+    const perTick = Math.max(1, Math.ceil(text.length / ticks));
     let i = 0;
     setDisplayed('');
     interval.current = setInterval(() => {
-      i++;
+      i = Math.min(text.length, i + perTick);
       setDisplayed(text.slice(0, i));
       if (i >= text.length) clearInterval(interval.current);
     }, speed);
     return () => clearInterval(interval.current);
-  }, [text, active]);
+  }, [text, active, speed]);
   return displayed;
 }
 
@@ -259,6 +268,15 @@ function StepBar({ stage }) {
 }
 
 /* ─── Streaming chat bubble ───────────────────── */
+/**
+ * Types a line out character by character.
+ *
+ * <p>Reveals a chunk per tick rather than a single character. At one char per
+ * 16ms this fired ~60 setState calls a second, and every one of them re-rendered
+ * a tree carrying two dozen motion components — which is what made the live
+ * column stutter. Chunking keeps the same reading speed for ~a fifth of the
+ * renders, and long lines now cost no more than short ones.
+ */
 function StreamingBubble({ text, color, label, onDone }) {
   const [chars, setChars] = useState(0);
   const interval = useRef(null);
@@ -270,9 +288,11 @@ function StreamingBubble({ text, color, label, onDone }) {
       onDone?.();
       return undefined;
     }
+    const ticks = Math.max(1, Math.round(TYPE_TARGET_MS / TYPE_TICK_MS));
+    const perTick = Math.max(1, Math.ceil(text.length / ticks));
     let i = 0;
     interval.current = setInterval(() => {
-      i++;
+      i = Math.min(text.length, i + perTick);
       setChars(i);
       if (i >= text.length) {
         clearInterval(interval.current);
@@ -281,7 +301,7 @@ function StreamingBubble({ text, color, label, onDone }) {
           onDone?.();
         }
       }
-    }, 16);
+    }, TYPE_TICK_MS);
     return () => clearInterval(interval.current);
   }, [text]);
 
@@ -1418,42 +1438,75 @@ export default function Workspace() {
             </div>
           )}
 
-          {/* Audit Log */}
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '0.62rem', color: 'rgba(26,13,30,0.85)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '9px' }}>
-              Transaction Audit Log
-            </div>
-            <div style={{
-              background: 'rgba(26,13,30,0.02)', border: '1px solid rgba(26,13,30,0.06)',
-              borderRadius: 'var(--radius-md)', overflow: 'hidden',
-            }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '50px 90px 1fr 65px', padding: '6px 11px', background: 'rgba(26,13,30,0.02)', borderBottom: '1px solid rgba(26,13,30,0.05)', fontSize: '0.6rem', fontWeight: 700, color: 'rgba(26,13,30,0.22)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                <div>Time</div><div>Clinic</div><div>Action</div><div style={{ textAlign: 'right' }}>Bid</div>
-              </div>
-              <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                <AnimatePresence>
-                  {logs.map(log => (
-                    <motion.div key={log.id}
-                      initial={{ opacity: 0, y: 15, backgroundColor: 'rgba(166,139,196,0.1)' }}
-                      animate={{ opacity: 1, y: 0, backgroundColor: 'transparent' }}
-                      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                      style={{ display: 'grid', gridTemplateColumns: '50px 90px 1fr 65px', padding: '6px 11px', fontSize: '0.7rem', borderBottom: '1px solid rgba(26,13,30,0.03)' }}
-                    >
-                      <div style={{ color: 'rgba(26,13,30,0.22)', fontFamily: 'var(--font-mono)' }}>{log.time}</div>
-                      <div style={{ color: 'rgba(26,13,30,0.45)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.clinic}</div>
-                      <div style={{ color: 'rgba(26,13,30,0.28)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.action}</div>
-                      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: log.bid.includes('—') ? 'rgba(26,13,30,0.18)' : 'var(--accent-emerald)', fontWeight: 600 }}>{log.bid}</div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-                {logs.length === 0 && (
-                  <div style={{ padding: '16px 11px', fontSize: '0.72rem', color: 'rgba(26,13,30,0.15)', fontFamily: 'var(--font-mono)' }}>
-                    Waiting for negotiation to start…
-                  </div>
-                )}
-              </div>
-            </div>
+        </div>
+      </div>
+
+      {/* ─── AUDIT LOG — full width ───────────────────────────────────────
+          This is the proof surface: the record that every price movement
+          traces to a quote that existed. Squeezed into a third of a column it
+          truncated clinic names mid-word and showed six rows. It gets the full
+          width because it's the part of the product that has to be readable. */}
+      <div className="audit-panel" style={{
+        margin: '0 24px 24px', background: 'var(--bg-card)',
+        border: '1px solid rgba(26,13,30,0.07)', borderRadius: 'var(--radius-lg)',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '13px 18px', borderBottom: '1px solid rgba(26,13,30,0.06)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 700, color: '#1a0d1e' }}>
+              Negotiation Log
+            </h2>
+            <span style={{ fontSize: '0.72rem', color: 'rgba(26,13,30,0.4)' }}>
+              every price movement, and what caused it
+            </span>
           </div>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'rgba(26,13,30,0.35)' }}>
+            {logs.length} {logs.length === 1 ? 'event' : 'events'}
+          </span>
+        </div>
+
+        <div className="audit-row audit-head" style={{
+          padding: '8px 18px', background: 'rgba(26,13,30,0.02)',
+          borderBottom: '1px solid rgba(26,13,30,0.05)',
+          fontSize: '0.6rem', fontWeight: 700, color: 'rgba(26,13,30,0.3)',
+          textTransform: 'uppercase', letterSpacing: '0.08em',
+        }}>
+          <div>Time</div><div>Clinic</div><div>Action</div><div style={{ textAlign: 'right' }}>Amount</div>
+        </div>
+
+        <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
+          {logs.map((log) => {
+            const refused = /refus|blocked/i.test(log.action);
+            const moved = /moved/i.test(log.action);
+            return (
+              <div
+                key={log.id}
+                className="audit-row"
+                style={{
+                  padding: '8px 18px', fontSize: '0.76rem',
+                  borderBottom: '1px solid rgba(26,13,30,0.03)',
+                  background: refused ? 'rgba(244,63,94,0.04)' : 'transparent',
+                }}
+              >
+                <div style={{ color: 'rgba(26,13,30,0.3)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>{log.time}</div>
+                <div style={{ color: 'rgba(26,13,30,0.6)', fontWeight: 500 }}>{log.clinic}</div>
+                <div style={{ color: refused ? 'var(--accent-rose)' : 'rgba(26,13,30,0.55)' }}>{log.action}</div>
+                <div style={{
+                  textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 600,
+                  color: log.bid.includes('—') ? 'rgba(26,13,30,0.2)'
+                    : moved ? 'var(--accent-emerald)' : 'rgba(26,13,30,0.6)',
+                }}>{log.bid}</div>
+              </div>
+            );
+          })}
+          {logs.length === 0 && (
+            <div style={{ padding: '22px 18px', fontSize: '0.76rem', color: 'rgba(26,13,30,0.25)', fontFamily: 'var(--font-mono)' }}>
+              Waiting for the negotiation to start…
+            </div>
+          )}
         </div>
       </div>
     </div>
