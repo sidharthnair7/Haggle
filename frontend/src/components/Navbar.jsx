@@ -129,7 +129,7 @@ export default function Navbar() {
         {/* ── CTA button ── */}
         <Magnetic>
           <motion.button
-            onClick={() => navigate('/workspace')}
+            onClick={() => navigate(isWorkspace ? '/' : '/workspace')}
             layout
             transition={spring}
             style={{
@@ -154,23 +154,29 @@ export default function Navbar() {
             whileHover={{ filter: 'brightness(1.08)', boxShadow: '0 4px 18px rgba(99,102,241,0.5)' }}
             whileTap={{ scale: 0.95 }}
           >
-            {/* Play icon — always shown */}
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none" style={{ flexShrink: 0 }}>
-              <polygon points="5 3 19 12 5 21 5 3" />
-            </svg>
+            {isWorkspace ? (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none" style={{ flexShrink: 0 }}>
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+            )}
 
             {/* Label — removed when scrolled */}
             <AnimatePresence>
               {!scrolled && (
                 <motion.span
-                  key="btn-label"
+                  key={isWorkspace ? 'btn-home' : 'btn-demo'}
                   initial={{ opacity: 0, width: 0 }}
                   animate={{ opacity: 1, width: 'auto' }}
                   exit={{ opacity: 0, width: 0 }}
                   transition={{ type: 'tween', ease: 'easeInOut', duration: 0.22 }}
                   style={{ overflow: 'hidden', display: 'inline-block', whiteSpace: 'nowrap' }}
                 >
-                  Run Demo
+                  {isWorkspace ? 'Home' : 'Run Demo'}
                 </motion.span>
               )}
             </AnimatePresence>
