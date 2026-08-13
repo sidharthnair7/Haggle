@@ -23,6 +23,45 @@ function SiteFooter() {
   return pathname.startsWith('/workspace') ? null : <Footer />
 }
 
+/** Smooth scroll is for the landing page only. On /workspace it fights the
+ *  inner overflow columns and makes the negotiation list feel sticky. */
+function SmoothScroll() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    if (pathname.startsWith('/workspace')) {
+      window.__lenis = null
+      return undefined
+    }
+
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      orientation: 'vertical',
+      gestureOrientation: 'vertical',
+      smoothWheel: true,
+      wheelMultiplier: 1,
+      touchMultiplier: 2,
+    })
+
+    const onTick = (time) => {
+      lenis.raf(time * 1000)
+    }
+
+    lenis.on('scroll', ScrollTrigger.update)
+    gsap.ticker.add(onTick)
+    gsap.ticker.lagSmoothing(0)
+    window.__lenis = lenis
+
+    return () => {
+      gsap.ticker.remove(onTick)
+      gsap.ticker.lagSmoothing(500)
+      lenis.destroy()
+      window.__lenis = null
+    }
+  }, [pathname])
+  return null
+}
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -52,36 +91,6 @@ class ErrorBoundary extends React.Component {
 function App() {
   const [loaded, setLoaded] = useState(false);
 
-  // Initialize Lenis smooth scroll
-  useEffect(() => {
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: true,
-      wheelMultiplier: 1,
-      touchMultiplier: 2,
-    });
-
-    // Connect Lenis to GSAP ScrollTrigger
-    lenis.on('scroll', ScrollTrigger.update);
-
-    gsap.ticker.add((time) => {
-      lenis.raf(time * 1000);
-    });
-
-    gsap.ticker.lagSmoothing(0);
-
-    // Store lenis instance on window for access from other components
-    window.__lenis = lenis;
-
-    return () => {
-      lenis.destroy();
-      window.__lenis = null;
-    };
-  }, []);
-
   return (
     <ErrorBoundary>
       {/* Preloader */}
@@ -97,6 +106,7 @@ function App() {
       <ScrollProgressBar />
 
       <Router>
+        <SmoothScroll />
         <Navbar />
         <div>
           <Routes>

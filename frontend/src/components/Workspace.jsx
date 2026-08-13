@@ -259,18 +259,29 @@ function StepBar({ stage }) {
 }
 
 /* ─── Streaming chat bubble ───────────────────── */
-function StreamingBubble({ text, done, color, label }) {
+function StreamingBubble({ text, color, label, onDone }) {
   const [chars, setChars] = useState(0);
   const interval = useRef(null);
+  const finished = useRef(false);
   useEffect(() => {
+    finished.current = false;
     setChars(0);
-    if (!text) return;
+    if (!text) {
+      onDone?.();
+      return undefined;
+    }
     let i = 0;
     interval.current = setInterval(() => {
       i++;
       setChars(i);
-      if (i >= text.length) clearInterval(interval.current);
-    }, 18);
+      if (i >= text.length) {
+        clearInterval(interval.current);
+        if (!finished.current) {
+          finished.current = true;
+          onDone?.();
+        }
+      }
+    }, 16);
     return () => clearInterval(interval.current);
   }, [text]);
 
@@ -280,6 +291,208 @@ function StreamingBubble({ text, done, color, label }) {
       {text.slice(0, chars)}
       {chars < text.length && <span style={{ opacity: 0.4 }}>█</span>}
     </div>
+  );
+}
+
+/** Live card: agent finishes speaking, then the clinic answers. */
+function SequentialExchange({ agent, clinic, clinicLabel }) {
+  const [clinicReady, setClinicReady] = useState(false);
+  useEffect(() => {
+    setClinicReady(false);
+  }, [agent, clinic]);
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: '7px', alignItems: 'flex-start' }}>
+        <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(166,139,196,0.2)', border: '1px solid rgba(166,139,196,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Bot size={10} color="var(--accent-indigo)" />
+        </div>
+        <StreamingBubble
+          text={agent}
+          onDone={() => { if (clinic) setTimeout(() => setClinicReady(true), 420); }}
+          color={{ bg: 'rgba(166,139,196,0.12)', border: 'rgba(166,139,196,0.2)', text: 'var(--accent-indigo)' }}
+          label="HaggleAI Agent"
+        />
+      </div>
+      {clinic && clinicReady && (
+        <div style={{ display: 'flex', gap: '7px', alignItems: 'flex-start', flexDirection: 'row-reverse' }}>
+          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(26,13,30,0.06)', border: '1px solid rgba(26,13,30,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <User size={10} color="rgba(26,13,30,0.4)" />
+          </div>
+          <StreamingBubble
+            text={clinic}
+            color={{ bg: 'rgba(26,13,30,0.06)', border: 'rgba(26,13,30,0.08)', text: 'rgba(26,13,30,0.35)' }}
+            label={clinicLabel || 'Clinic Rep'}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+/** One spoken line in the expanded call log. Finished lines stay fully visible. */
+function SpokenTurn({ turn, clinicName, playing, onFinished, blocked }) {
+  const isAgent = turn.speaker === 'AGENT';
+  const full = turn.text || '';
+  const [chars, setChars] = useState(playing ? 0 : full.length);
+  const finished = useRef(false);
+
+  useEffect(() => {
+    if (!playing) {
+      setChars(full.length);
+      return undefined;
+    }
+    finished.current = false;
+    setChars(0);
+    if (!full) {
+      onFinished?.();
+      return undefined;
+    }
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setChars(i);
+      if (i >= full.length) {
+        clearInterval(id);
+        if (!finished.current) {
+          finished.current = true;
+          onFinished?.();
+        }
+      }
+    }, 15);
+    return () => clearInterval(id);
+  }, [playing, turn.id, full]);
+
+  return (
+    <div
+      style={{
+        display: 'flex', gap: '7px', alignItems: 'flex-start',
+        flexDirection: isAgent ? 'row' : 'row-reverse',
+      }}
+    >
+      <div style={{
+        width: '20px', height: '20px', borderRadius: '50%',
+        background: blocked ? 'rgba(244,63,94,0.14)' : isAgent ? 'rgba(166,139,196,0.2)' : 'rgba(26,13,30,0.06)',
+        border: `1px solid ${blocked ? 'rgba(244,63,94,0.3)' : isAgent ? 'rgba(166,139,196,0.3)' : 'rgba(26,13,30,0.1)'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        {blocked
+          ? <Shield size={10} color="var(--accent-rose)" />
+          : isAgent
+            ? <Bot size={10} color="var(--accent-indigo)" />
+            : <User size={10} color="rgba(26,13,30,0.4)" />}
+      </div>
+      <div style={{
+        maxWidth: '78%', padding: '7px 10px', borderRadius: 'var(--radius-md)',
+        fontSize: '0.76rem', lineHeight: 1.5,
+        background: blocked ? 'rgba(244,63,94,0.06)' : isAgent ? 'rgba(166,139,196,0.1)' : 'rgba(26,13,30,0.04)',
+        border: `1px solid ${blocked ? 'rgba(244,63,94,0.2)' : isAgent ? 'rgba(166,139,196,0.18)' : 'rgba(26,13,30,0.07)'}`,
+        color: 'rgba(26,13,30,0.8)',
+      }}>
+        <div style={{
+          fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.07em',
+          textTransform: 'uppercase', marginBottom: '3px',
+          color: blocked ? 'var(--accent-rose)' : isAgent ? 'var(--accent-indigo)' : 'rgba(26,13,30,0.32)',
+        }}>
+          {blocked ? 'Blocked by leverage gate' : isAgent ? 'HaggleAI Agent' : clinicName}
+          <span style={{ fontWeight: 500, letterSpacing: 0, textTransform: 'none', opacity: 0.7 }}>
+            {' '}· round {turn.round}
+          </span>
+        </div>
+        {full.slice(0, chars)}
+        {playing && chars < full.length && <span style={{ opacity: 0.35 }}>█</span>}
+      </div>
+    </div>
+  );
+}
+
+/** Plays a clinic's transcript as a phone call: one speaker finishes, then the other. */
+function ClinicCallLog({ turns, clinicName }) {
+  const [shown, setShown] = useState(0);
+  const [live, setLive] = useState(true);
+  const shownRef = useRef(0);
+  const liveRef = useRef(true);
+  shownRef.current = shown;
+  liveRef.current = live;
+
+  useEffect(() => {
+    shownRef.current = 0;
+    liveRef.current = true;
+    setShown(turns.length ? 1 : 0);
+    setLive(true);
+  }, [clinicName]);
+
+  useEffect(() => {
+    if (!turns.length) return;
+    if (shownRef.current === 0) {
+      setShown(1);
+      setLive(true);
+      return;
+    }
+    if (!liveRef.current && turns.length > shownRef.current) {
+      setShown((n) => n + 1);
+      setLive(true);
+    }
+  }, [turns.length]);
+
+  const advance = useCallback(() => {
+    const i = shownRef.current;
+    if (i >= turns.length) {
+      setLive(false);
+      return;
+    }
+    const current = turns[i - 1];
+    const next = turns[i];
+    const beat = next && current && next.speaker !== current.speaker ? 520 : 280;
+    setTimeout(() => {
+      if (shownRef.current >= turns.length) {
+        setLive(false);
+        return;
+      }
+      setShown((n) => Math.min(turns.length, n + 1));
+    }, beat);
+  }, [turns]);
+
+  if (!turns.length) {
+    return (
+      <div style={{ fontSize: '0.72rem', color: 'rgba(26,13,30,0.35)', padding: '6px 0' }}>
+        No call recorded for this clinic yet.
+      </div>
+    );
+  }
+
+  const visible = turns.slice(0, shown);
+  return (
+    <>
+      {visible.map((t, idx, arr) => {
+        const blocked = t.speaker === 'AGENT' && (t.text || '').startsWith('[blocked');
+        const newRound = idx > 0 && t.round !== arr[idx - 1].round;
+        const isPlaying = live && idx === shown - 1;
+        return (
+          <React.Fragment key={t.id}>
+            {newRound && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                margin: '4px 0 2px', color: 'rgba(26,13,30,0.28)',
+                fontSize: '0.58rem', fontWeight: 700,
+                letterSpacing: '0.09em', textTransform: 'uppercase',
+              }}>
+                <div style={{ flex: 1, height: '1px', background: 'rgba(26,13,30,0.08)' }} />
+                callback · round {t.round}
+                <div style={{ flex: 1, height: '1px', background: 'rgba(26,13,30,0.08)' }} />
+              </div>
+            )}
+            <SpokenTurn
+              turn={t}
+              clinicName={clinicName}
+              blocked={blocked}
+              playing={isPlaying}
+              onFinished={isPlaying ? advance : undefined}
+            />
+          </React.Fragment>
+        );
+      })}
+    </>
   );
 }
 
@@ -362,10 +575,17 @@ export default function Workspace() {
   const logsEndRef = useRef(null);
   const unsubRef = useRef(null);
   const runIdRef = useRef(null);
+  const refreshTimerRef = useRef(null);
+  const pendingRefreshRef = useRef(false);
 
   const clearTimeouts = () => {
     timeouts.current.forEach(clearTimeout);
     timeouts.current = [];
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+    pendingRefreshRef.current = false;
   };
 
   const addTimeout = (fn, ms) => {
@@ -405,6 +625,24 @@ export default function Workspace() {
     applySnapshot(snap);
     return snap;
   }, [applySnapshot]);
+
+  // One UI paint per ~350ms during a live run. SSE fires per audit event
+  // (and EventSource reconnects fire onerror); refetching the full snapshot
+  // each time is what made column 2 hitch.
+  const scheduleRefresh = useCallback((id) => {
+    if (refreshTimerRef.current) {
+      pendingRefreshRef.current = true;
+      return;
+    }
+    refreshSnapshot(id).catch((e) => setError(e.message));
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false;
+        scheduleRefresh(id);
+      }
+    }, 350);
+  }, [refreshSnapshot]);
 
   const applyExtractedSpec = (text) => {
     const extracted = extractSpecFromOrder(text);
@@ -459,10 +697,17 @@ export default function Workspace() {
       runIdRef.current = started.id;
 
       unsubRef.current = subscribeRunEvents(started.id, {
-        onEvent: () => { refreshSnapshot(started.id).catch(e => setError(e.message)); },
-        onDone: () => { refreshSnapshot(started.id).catch(e => setError(e.message)); },
-        // EventSource reconnects on its own; poll once so the UI never stalls.
-        onError: () => { refreshSnapshot(started.id).catch(() => {}); },
+        onEvent: () => scheduleRefresh(started.id),
+        onDone: () => {
+          if (refreshTimerRef.current) {
+            clearTimeout(refreshTimerRef.current);
+            refreshTimerRef.current = null;
+          }
+          pendingRefreshRef.current = false;
+          refreshSnapshot(started.id).catch(e => setError(e.message));
+        },
+        // Reconnects are normal on Render Free. Don't refetch the whole run.
+        onError: () => {},
       });
 
       await refreshSnapshot(started.id);
@@ -494,7 +739,6 @@ export default function Workspace() {
     unsubRef.current = null;
     runIdRef.current = null;
     setUploadNote(null);
-    setRevealCount({});
     setExpandedClinic(null);
     setStage(1);
     setProviders([]);
@@ -565,32 +809,6 @@ export default function Workspace() {
     } catch {
       setUploadNote({ error: true, text: 'Could not read that file.' });
     }
-  };
-
-  const [revealCount, setRevealCount] = useState({});
-  const conversationRef = useRef([]);
-  conversationRef.current = snapshot?.conversation || [];
-
-  useEffect(() => {
-    if (!expandedClinic) return undefined;
-    const tick = setInterval(() => {
-      setRevealCount((prev) => {
-        const total = conversationRef.current
-          .filter((t) => t.clinicName === expandedClinic).length;
-        const shown = prev[expandedClinic] ?? 0;
-        if (shown >= total) return prev;
-        return { ...prev, [expandedClinic]: shown + 1 };
-      });
-    }, 650);
-    return () => clearInterval(tick);
-  }, [expandedClinic]);
-
-  /** Turns for a clinic, limited to what's been revealed so far. */
-  const visibleTurnsFor = (clinicName) => {
-    const all = turnsFor(clinicName);
-    if (clinicName !== expandedClinic) return all;
-    // 0 until expand sets a count — never dump the full log then rewind.
-    return all.slice(0, revealCount[clinicName] ?? 0);
   };
 
   // Scale the price bars against the highest opening quote actually seen.
@@ -940,7 +1158,7 @@ export default function Workspace() {
                 const badge = BADGE_STYLE[p.statusType] || BADGE_STYLE.pending;
                 const isFocused = activeFocus === p.id;
                 return (
-                  <motion.div key={p.id} layout
+                  <motion.div key={p.id}
                     initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                     style={{
@@ -952,15 +1170,7 @@ export default function Workspace() {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isFocused && dialogue ? '12px' : '5px' }}>
                       <button
-                        onClick={() => {
-                          const next = expandedClinic === p.name ? null : p.name;
-                          setExpandedClinic(next);
-                          if (next) {
-                            setRevealCount((prev) => (
-                              prev[next] != null ? prev : { ...prev, [next]: 1 }
-                            ));
-                          }
-                        }}
+                        onClick={() => setExpandedClinic(expandedClinic === p.name ? null : p.name)}
                         title={`Show the full call with ${p.name}`}
                         style={{
                           display: 'flex', alignItems: 'center', gap: '5px',
@@ -998,105 +1208,23 @@ export default function Workspace() {
                           exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
                           style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '10px' }}
                         >
-                          {turnsFor(p.name).length === 0 && (
-                            <div style={{ fontSize: '0.72rem', color: 'rgba(26,13,30,0.35)', padding: '6px 0' }}>
-                              No call recorded for this clinic yet.
-                            </div>
-                          )}
-                          {visibleTurnsFor(p.name).map((t, idx, arr) => {
-                            const isAgent = t.speaker === 'AGENT';
-                            const blocked = isAgent && t.text.startsWith('[blocked');
-                            // Rounds 2+ are callbacks — separate phone calls. Marking
-                            // the boundary is why the agent appears to speak twice in
-                            // a row across it: one call ends, the next one opens.
-                            const newRound = idx > 0 && t.round !== arr[idx - 1].round;
-                            return (
-                              <React.Fragment key={t.id}>
-                              {newRound && (
-                                <div style={{
-                                  display: 'flex', alignItems: 'center', gap: '8px',
-                                  margin: '4px 0 2px', color: 'rgba(26,13,30,0.28)',
-                                  fontSize: '0.58rem', fontWeight: 700,
-                                  letterSpacing: '0.09em', textTransform: 'uppercase',
-                                }}>
-                                  <div style={{ flex: 1, height: '1px', background: 'rgba(26,13,30,0.08)' }} />
-                                  callback · round {t.round}
-                                  <div style={{ flex: 1, height: '1px', background: 'rgba(26,13,30,0.08)' }} />
-                                </div>
-                              )}
-                              <div
-                                style={{
-                                  display: 'flex', gap: '7px', alignItems: 'flex-start',
-                                  flexDirection: isAgent ? 'row' : 'row-reverse',
-                                }}
-                              >
-                                <div style={{
-                                  width: '20px', height: '20px', borderRadius: '50%',
-                                  background: blocked ? 'rgba(244,63,94,0.14)' : isAgent ? 'rgba(166,139,196,0.2)' : 'rgba(26,13,30,0.06)',
-                                  border: `1px solid ${blocked ? 'rgba(244,63,94,0.3)' : isAgent ? 'rgba(166,139,196,0.3)' : 'rgba(26,13,30,0.1)'}`,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                                }}>
-                                  {blocked
-                                    ? <Shield size={10} color="var(--accent-rose)" />
-                                    : isAgent
-                                      ? <Bot size={10} color="var(--accent-indigo)" />
-                                      : <User size={10} color="rgba(26,13,30,0.4)" />}
-                                </div>
-                                <div style={{
-                                  maxWidth: '78%', padding: '7px 10px', borderRadius: 'var(--radius-md)',
-                                  fontSize: '0.76rem', lineHeight: 1.5,
-                                  background: blocked ? 'rgba(244,63,94,0.06)' : isAgent ? 'rgba(166,139,196,0.1)' : 'rgba(26,13,30,0.04)',
-                                  border: `1px solid ${blocked ? 'rgba(244,63,94,0.2)' : isAgent ? 'rgba(166,139,196,0.18)' : 'rgba(26,13,30,0.07)'}`,
-                                  color: 'rgba(26,13,30,0.8)',
-                                }}>
-                                  <div style={{
-                                    fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.07em',
-                                    textTransform: 'uppercase', marginBottom: '3px',
-                                    color: blocked ? 'var(--accent-rose)' : isAgent ? 'var(--accent-indigo)' : 'rgba(26,13,30,0.32)',
-                                  }}>
-                                    {blocked ? 'Blocked by leverage gate' : isAgent ? 'HaggleAI Agent' : p.name}
-                                    <span style={{ fontWeight: 500, letterSpacing: 0, textTransform: 'none', opacity: 0.7 }}>
-                                      {' '}· round {t.round}
-                                    </span>
-                                  </div>
-                                  {t.text}
-                                </div>
-                              </div>
-                              </React.Fragment>
-                            );
-                          })}
+                          <ClinicCallLog key={p.name} turns={turnsFor(p.name)} clinicName={p.name} />
                         </motion.div>
                       )}
                     </AnimatePresence>
 
-                    {/* Streaming chat bubbles */}
-                    {isFocused && dialogue && (
+                    {/* Live exchange: agent finishes, then clinic answers.
+                        Hidden while the full call is open so the two don't talk over each other. */}
+                    {isFocused && dialogue && expandedClinic !== p.name && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
                         style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '10px' }}
                       >
-                        <div style={{ display: 'flex', gap: '7px', alignItems: 'flex-start' }}>
-                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(166,139,196,0.2)', border: '1px solid rgba(166,139,196,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <Bot size={10} color="var(--accent-indigo)" />
-                          </div>
-                          <StreamingBubble
-                            text={dialogue.agent}
-                            color={{ bg: 'rgba(166,139,196,0.12)', border: 'rgba(166,139,196,0.2)', text: 'var(--accent-indigo)' }}
-                            label="HaggleAI Agent"
-                          />
-                        </div>
-                        {dialogue.clinic && (
-                        <div style={{ display: 'flex', gap: '7px', alignItems: 'flex-start', flexDirection: 'row-reverse' }}>
-                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(26,13,30,0.06)', border: '1px solid rgba(26,13,30,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <User size={10} color="rgba(26,13,30,0.4)" />
-                          </div>
-                          <StreamingBubble
-                            text={dialogue.clinic}
-                            color={{ bg: 'rgba(26,13,30,0.06)', border: 'rgba(26,13,30,0.08)', text: 'rgba(26,13,30,0.35)' }}
-                            label="Clinic Rep"
-                          />
-                        </div>
-                        )}
+                        <SequentialExchange
+                          agent={dialogue.agent}
+                          clinic={dialogue.clinic}
+                          clinicLabel={p.name}
+                        />
                       </motion.div>
                     )}
 
