@@ -74,7 +74,7 @@ public class NegotiationOrchestrator {
             case DECLINED -> "No worries — thanks for your time.";
             case BUNDLED -> null;
             case ITEMIZED -> "$" + (int) quote.total() + " — got it, thanks. I'm checking a "
-                    + "few other places, so I may call you back.";
+                    + "few other places.";
         };
     }
 
@@ -220,6 +220,7 @@ public class NegotiationOrchestrator {
             emit(runId, NegotiationEvent.Type.QUOTE_RECEIVED, entry.getKey(), 1,
                     itemized.getOutcome().name(),
                     itemized.citable() ? itemized.total() : null);
+            sayAgent(runId, entry.getKey(), 1, closingRound1(itemized));
         }
     }
 

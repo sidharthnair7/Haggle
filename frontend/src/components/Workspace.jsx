@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import './Workspace.css';
 import { startRun, getRun, subscribeRunEvents, tryBluff } from '../api';
+import { extractPdfText, extractSpecFromOrder, isPdfFile, isTextReferral } from '../referral';
 
 /* ─── Backend snapshot → view model ──────────────
    The UI shapes below (providers / logs / savings / redFlag / dialogue) are
@@ -105,19 +106,23 @@ function buildDialogue(snap) {
   const turns = snap.conversation || [];
   if (turns.length === 0) return null;
 
+  // Pair the latest clinic line with the agent line that preceded it.
+  // Never invent a clinic reply — a closing "got it, thanks" has no answer.
+  const lastClinic = [...turns].reverse().find((t) => t.speaker === 'CLINIC');
+  if (lastClinic) {
+    const agentBefore = [...turns].reverse().find(
+      (t) => t.speaker === 'AGENT'
+        && t.clinicName === lastClinic.clinicName
+        && t.id < lastClinic.id
+    );
+    return {
+      agent: agentBefore ? agentBefore.text : lastClinic.text,
+      clinic: lastClinic.text,
+    };
+  }
+
   const lastAgent = [...turns].reverse().find((t) => t.speaker === 'AGENT');
-  if (!lastAgent) return null;
-
-  const reply = [...turns].reverse().find(
-    (t) => t.speaker === 'CLINIC'
-      && t.clinicName === lastAgent.clinicName
-      && t.id > lastAgent.id
-  );
-
-  return {
-    agent: lastAgent.text,
-    clinic: reply ? reply.text : 'Let me check with billing…',
-  };
+  return lastAgent ? { agent: lastAgent.text, clinic: null } : null;
 }
 
 /* ─── Typewriter hook ────────────────────────── */
@@ -401,8 +406,19 @@ export default function Workspace() {
     return snap;
   }, [applySnapshot]);
 
+  const applyExtractedSpec = (text) => {
+    const extracted = extractSpecFromOrder(text);
+    setSpecItems((prev) => prev.map((item) => {
+      if (item.label === 'Procedure' && extracted.procedure) return { ...item, value: extracted.procedure };
+      if (item.label === 'Body Part' && extracted.bodyPart) return { ...item, value: extracted.bodyPart };
+      if (item.label === 'Contrast' && extracted.contrast) return { ...item, value: extracted.contrast };
+      return item;
+    }));
+  };
+
   const handleParseOrder = () => {
     setIsParsing(true);
+    applyExtractedSpec(orderText);
     addTimeout(() => { setParseDone(true); setIsParsing(false); }, 1400);
   };
 
@@ -510,32 +526,45 @@ export default function Workspace() {
   const fileInputRef = useRef(null);
   const [uploadNote, setUploadNote] = useState(null);
 
-  /** Load a plain-text referral into the doctor's order box. */
-  const handleReferralFile = (file) => {
+  /** Load a text or PDF referral into the doctor's order box. */
+  const handleReferralFile = async (file) => {
     if (!file) return;
-    const isText = file.type.startsWith('text/')
-      || /\.(txt|md|rtf)$/i.test(file.name);
-    if (!isText) {
-      setUploadNote({ error: true, text: `${file.name} isn't a text file — paste the order below instead.` });
+    const pdf = isPdfFile(file);
+    const textFile = isTextReferral(file);
+    if (!pdf && !textFile) {
+      setUploadNote({ error: true, text: `${file.name} isn't a PDF or text file — paste the order below instead.` });
       return;
     }
-    if (file.size > 200_000) {
+    const maxBytes = pdf ? 8_000_000 : 200_000;
+    if (file.size > maxBytes) {
       setUploadNote({ error: true, text: 'That file is too large for a referral.' });
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = String(reader.result || '').trim();
-      if (!text) {
-        setUploadNote({ error: true, text: 'That file was empty.' });
-        return;
+
+    try {
+      let text = '';
+      if (pdf) {
+        setUploadNote({ error: false, text: `Reading ${file.name}…` });
+        text = await extractPdfText(file);
+        if (!text) {
+          setUploadNote({ error: true, text: 'No text in that PDF (it may be a scan). Paste the order instead.' });
+          return;
+        }
+      } else {
+        text = await file.text();
+        text = text.trim();
+        if (!text) {
+          setUploadNote({ error: true, text: 'That file was empty.' });
+          return;
+        }
       }
       setOrderText(text);
+      applyExtractedSpec(text);
       setParseDone(false);
       setUploadNote({ error: false, text: `Loaded ${file.name} — parse it below.` });
-    };
-    reader.onerror = () => setUploadNote({ error: true, text: 'Could not read that file.' });
-    reader.readAsText(file);
+    } catch {
+      setUploadNote({ error: true, text: 'Could not read that file.' });
+    }
   };
 
   const [revealCount, setRevealCount] = useState({});
@@ -560,7 +589,8 @@ export default function Workspace() {
   const visibleTurnsFor = (clinicName) => {
     const all = turnsFor(clinicName);
     if (clinicName !== expandedClinic) return all;
-    return all.slice(0, revealCount[clinicName] ?? all.length);
+    // 0 until expand sets a count — never dump the full log then rewind.
+    return all.slice(0, revealCount[clinicName] ?? 0);
   };
 
   // Scale the price bars against the highest opening quote actually seen.
@@ -700,9 +730,7 @@ export default function Workspace() {
             />
           </div>
 
-          {/* Upload zone — reads a text referral into the order box above.
-              Labelled for what it actually accepts: a control that swallows any
-              file and does nothing is worse than not having one. */}
+          {/* Upload zone — PDF (text layer) or plain-text referral into the order box. */}
           <div>
             <div style={{ fontSize: '0.62rem', color: 'rgba(26,13,30,0.85)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '7px' }}>
               Supporting Documentation
@@ -710,7 +738,7 @@ export default function Workspace() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".txt,.md,.rtf,text/plain"
+              accept=".txt,.md,.rtf,.pdf,text/plain,application/pdf"
               style={{ display: 'none' }}
               onChange={(e) => handleReferralFile(e.target.files?.[0])}
             />
@@ -736,7 +764,7 @@ export default function Workspace() {
               <div style={{ fontSize: '0.77rem', textAlign: 'center' }}>
                 {uploadNote
                   ? <span style={{ color: uploadNote.error ? 'var(--accent-rose)' : 'var(--accent-emerald)' }}>{uploadNote.text}</span>
-                  : 'Drop a referral (.txt) or click to browse'}
+                  : 'Drop a referral PDF or .txt, or click to browse'}
               </div>
             </div>
           </div>
@@ -924,7 +952,15 @@ export default function Workspace() {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isFocused && dialogue ? '12px' : '5px' }}>
                       <button
-                        onClick={() => setExpandedClinic(expandedClinic === p.name ? null : p.name)}
+                        onClick={() => {
+                          const next = expandedClinic === p.name ? null : p.name;
+                          setExpandedClinic(next);
+                          if (next) {
+                            setRevealCount((prev) => (
+                              prev[next] != null ? prev : { ...prev, [next]: 1 }
+                            ));
+                          }
+                        }}
                         title={`Show the full call with ${p.name}`}
                         style={{
                           display: 'flex', alignItems: 'center', gap: '5px',
@@ -1049,6 +1085,7 @@ export default function Workspace() {
                             label="HaggleAI Agent"
                           />
                         </div>
+                        {dialogue.clinic && (
                         <div style={{ display: 'flex', gap: '7px', alignItems: 'flex-start', flexDirection: 'row-reverse' }}>
                           <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(26,13,30,0.06)', border: '1px solid rgba(26,13,30,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <User size={10} color="rgba(26,13,30,0.4)" />
@@ -1059,6 +1096,7 @@ export default function Workspace() {
                             label="Clinic Rep"
                           />
                         </div>
+                        )}
                       </motion.div>
                     )}
 
