@@ -55,8 +55,35 @@ public class NegotiationOrchestrator {
     private final ConversationTurnRepository conversations;
 
     private void sayAgent(UUID runId, String clinic, int round, String text) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
         conversations.save(new ConversationTurn(
                 runId, clinic, round, ConversationTurn.Speaker.AGENT, text, null));
+    }
+
+    /**
+     * What the agent says back once a clinic has given (or refused) a number.
+     *
+     * <p>Null for a bundled quote: the itemization press is the very next line,
+     * and two agent turns in a row with no reply between them doesn't read as a
+     * conversation.
+     */
+    private static String closingRound1(Quote quote) {
+        return switch (quote.getOutcome()) {
+            case DECLINED -> "No worries — thanks for your time.";
+            case BUNDLED -> null;
+            case ITEMIZED -> "$" + (int) quote.total() + " — got it, thanks. I'm checking a "
+                    + "few other places, so I may call you back.";
+        };
+    }
+
+    /** And what it says after a clinic either moves or holds on a callback. */
+    private static String closingCallback(boolean moved, double newTotal) {
+        return moved
+                ? "$" + (int) newTotal + " — appreciate you looking. I'll come back to you "
+                    + "once I've heard from the rest."
+                : "Understood. If anything opens up on your end, I'd still rather book with you.";
     }
 
     private static String article(String phrase) {
@@ -130,6 +157,12 @@ public class NegotiationOrchestrator {
                     quote.getOutcome().name(),
                     quote.citable() || quote.getOutcome() == Quote.Outcome.BUNDLED
                             ? quote.total() : null);
+
+            // A real call doesn't end the second a number is said — you repeat it
+            // back, check nothing's hiding behind it, and tell them what happens
+            // next. Without this every exchange reads as one question and one
+            // answer, which is not how anyone actually talks on the phone.
+            sayAgent(runId, clinic.name(), 1, closingRound1(quote));
         });
 
         emit(runId, NegotiationEvent.Type.ROUND_COMPLETE, null, 1, "Round 1 complete", null);
@@ -233,6 +266,10 @@ public class NegotiationOrchestrator {
                                 ? "Moved from $" + (int) theirTotal + " to $" + (int) response.total()
                                 : "Held at $" + (int) theirTotal,
                         response.citable() ? response.total() : theirTotal);
+
+                sayAgent(runId, clinic.name(), currentRound,
+                        closingCallback(moved, response.citable() ? response.total() : theirTotal));
+
                 if (moved) {
                     anyMoved.set(true);
                 }

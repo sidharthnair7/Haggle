@@ -497,6 +497,33 @@ export default function Workspace() {
   const turnsFor = (clinicName) =>
     (snapshot?.conversation || []).filter((t) => t.clinicName === clinicName);
 
+  // Turns arrive in one snapshot, so without this the whole call materialises at
+  // once — the clinic appearing to answer before the agent has finished asking.
+  // Revealing them on a beat is what makes it read as a conversation.
+  const [revealCount, setRevealCount] = useState({});
+
+  useEffect(() => {
+    if (!expandedClinic) return;
+    const total = turnsFor(expandedClinic).length;
+    setRevealCount((prev) => ({ ...prev, [expandedClinic]: prev[expandedClinic] ?? 0 }));
+
+    const timers = [];
+    for (let i = 1; i <= total; i++) {
+      timers.push(setTimeout(() => {
+        setRevealCount((prev) =>
+          (prev[expandedClinic] ?? 0) >= i ? prev : { ...prev, [expandedClinic]: i });
+      }, i * 700));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [expandedClinic, snapshot]);
+
+  /** Turns for a clinic, limited to what's been revealed so far. */
+  const visibleTurnsFor = (clinicName) => {
+    const all = turnsFor(clinicName);
+    if (clinicName !== expandedClinic) return all;
+    return all.slice(0, revealCount[clinicName] ?? all.length);
+  };
+
   // Scale the price bars against the highest opening quote actually seen.
   const highestPrice = Math.max(
     money(snapshot?.openingHigh),
@@ -880,12 +907,28 @@ export default function Workspace() {
                               No call recorded for this clinic yet.
                             </div>
                           )}
-                          {turnsFor(p.name).map((t) => {
+                          {visibleTurnsFor(p.name).map((t, idx, arr) => {
                             const isAgent = t.speaker === 'AGENT';
                             const blocked = isAgent && t.text.startsWith('[blocked');
+                            // Rounds 2+ are callbacks — separate phone calls. Marking
+                            // the boundary is why the agent appears to speak twice in
+                            // a row across it: one call ends, the next one opens.
+                            const newRound = idx > 0 && t.round !== arr[idx - 1].round;
                             return (
+                              <React.Fragment key={t.id}>
+                              {newRound && (
+                                <div style={{
+                                  display: 'flex', alignItems: 'center', gap: '8px',
+                                  margin: '4px 0 2px', color: 'rgba(26,13,30,0.28)',
+                                  fontSize: '0.58rem', fontWeight: 700,
+                                  letterSpacing: '0.09em', textTransform: 'uppercase',
+                                }}>
+                                  <div style={{ flex: 1, height: '1px', background: 'rgba(26,13,30,0.08)' }} />
+                                  callback · round {t.round}
+                                  <div style={{ flex: 1, height: '1px', background: 'rgba(26,13,30,0.08)' }} />
+                                </div>
+                              )}
                               <div
-                                key={t.id}
                                 style={{
                                   display: 'flex', gap: '7px', alignItems: 'flex-start',
                                   flexDirection: isAgent ? 'row' : 'row-reverse',
@@ -923,6 +966,7 @@ export default function Workspace() {
                                   {t.text}
                                 </div>
                               </div>
+                              </React.Fragment>
                             );
                           })}
                         </motion.div>
