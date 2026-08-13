@@ -140,10 +140,10 @@ const AGENT_LINES = [
   { text: '  Scarborough Health Scan   "Hold on, is this an AI? Sorry, we don\'t do this."', color: '#e11d48', delay: 3 },
   { text: '  Danforth Medical           $460   itemized', color: 'rgba(0,0,0,0.7)', delay: 4 },
   { text: '  Bloor West Imaging       $495   itemized', color: 'rgba(0,0,0,0.7)', delay: 4 },
-  { text: '  Yorkville Radiology      $560   itemized', color: 'rgba(0,0,0,0.7)', delay: 5 },
+  { text: '  Yorkville Radiology      $610   itemized', color: 'rgba(0,0,0,0.7)', delay: 5 },
   { text: '  Queen Street Diag.     $380   ⚠ no breakdown given', color: '#e11d48', delay: 5 },
   { text: '', delay: 6 },
-  { text: '» Pressing Toronto for an itemized breakdown...', color: 'rgba(0,0,0,0.5)', delay: 6 },
+  { text: '» Pressing Queen Street for an itemized breakdown...', color: 'rgba(0,0,0,0.5)', delay: 6 },
   { text: '  Clinic → "the scan is $380, then $120 facility and $75 contrast admin."', color: 'rgba(0,0,0,0.7)', delay: 7 },
   { text: '  Queen Street Diag.     $575   ← $195 in fees revealed', color: '#e11d48', delay: 8 },
   { text: '', delay: 9 },
@@ -160,7 +160,7 @@ const AGENT_LINES = [
   { text: '  Scarborough Health Scan       declined to quote', color: 'rgba(0,0,0,0.4)', delay: 15 },
   { text: '', delay: 16 },
   { text: '  Opening market  $460–$575    saved vs. one clinic at random  $62', color: '#059669', delay: 16 },
-  { text: '  Largest concession  $94 (Toronto)', color: '#059669', delay: 17 },
+  { text: '  Largest concession  $94 (Queen Street Diag.)', color: '#059669', delay: 17 },
   { text: '✓ Every cited figure verified against the quote store.', color: '#059669', delay: 18 },
 ];
 
@@ -735,7 +735,7 @@ export default function LandingPage() {
               backdropFilter: 'blur(8px)',
             }}>
               <div className="status-dot indigo" style={{ width: '5px', height: '5px' }} />
-              hackathon demo · autonomous medical price negotiation
+              hackathon demo · simulated clinics
             </div>
           </motion.div>
 
@@ -779,10 +779,23 @@ export default function LandingPage() {
             style={{
               color: 'var(--text-secondary)', maxWidth: '560px',
               fontSize: 'clamp(1rem, 1.5vw, 1.15rem)', lineHeight: 1.65,
-              textAlign: 'center', marginBottom: '48px',
+              textAlign: 'center', marginBottom: '12px',
             }}
           >
             Say what scan you need. A negotiator agent works every clinic at once, plays their quotes against each other, and comes back with the lowest itemized cash price — and it can't cite a figure no clinic actually gave.
+          </motion.p>
+
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.58, ease: [0.16, 1, 0.3, 1] }}
+            style={{
+              color: 'rgba(17,24,39,0.45)', maxWidth: '520px',
+              fontSize: '0.82rem', lineHeight: 1.5, textAlign: 'center',
+              fontFamily: 'var(--font-mono)', marginBottom: '40px',
+            }}
+          >
+            The five desks are simulated. Quotes, itemization, and the honesty gate are real.
           </motion.p>
 
           <motion.div

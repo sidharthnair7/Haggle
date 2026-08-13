@@ -74,7 +74,7 @@ export default function Footer() {
             {/* One real link beats three that go nowhere — judges click these. */}
             <div style={{ display: 'flex', gap: '16px' }}>
               <a
-                href="https://github.com/sidharthnair7/HaggleAI"
+                href="https://github.com/sidharthnair7/Haggle"
                 target="_blank"
                 rel="noreferrer"
                 style={{

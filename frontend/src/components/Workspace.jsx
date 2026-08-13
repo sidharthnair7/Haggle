@@ -1128,6 +1128,12 @@ export default function Workspace() {
             >
               Confirm Spec & Query Clinics
             </button>
+            <p style={{
+              margin: '8px 0 0', fontSize: '0.68rem', lineHeight: 1.45,
+              color: 'rgba(26,13,30,0.38)', fontFamily: 'var(--font-mono)',
+            }}>
+              Clinics are simulated. Quotes, itemization, and the honesty gate are real.
+            </p>
           </div>
         </div>
 
