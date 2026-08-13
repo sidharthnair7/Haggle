@@ -477,6 +477,9 @@ export default function Workspace() {
     unsubRef.current?.();
     unsubRef.current = null;
     runIdRef.current = null;
+    setUploadNote(null);
+    setRevealCount({});
+    setExpandedClinic(null);
     setStage(1);
     setProviders([]);
     setLogs([]);
@@ -497,25 +500,61 @@ export default function Workspace() {
   const turnsFor = (clinicName) =>
     (snapshot?.conversation || []).filter((t) => t.clinicName === clinicName);
 
-  // Turns arrive in one snapshot, so without this the whole call materialises at
-  // once — the clinic appearing to answer before the agent has finished asking.
-  // Revealing them on a beat is what makes it read as a conversation.
+  // Turns arrive in one snapshot, so without pacing the whole call materialises
+  // at once — the clinic appearing to answer before the agent finished asking.
+  //
+  // One interval that walks forward, keyed only on which clinic is open. Keying
+  // it on `snapshot` instead means tearing down and rescheduling every timer on
+  // each SSE event — roughly thirty times a run — which is pure churn and makes
+  // the whole column feel stuck.
+  const fileInputRef = useRef(null);
+  const [uploadNote, setUploadNote] = useState(null);
+
+  /** Load a plain-text referral into the doctor's order box. */
+  const handleReferralFile = (file) => {
+    if (!file) return;
+    const isText = file.type.startsWith('text/')
+      || /\.(txt|md|rtf)$/i.test(file.name);
+    if (!isText) {
+      setUploadNote({ error: true, text: `${file.name} isn't a text file — paste the order below instead.` });
+      return;
+    }
+    if (file.size > 200_000) {
+      setUploadNote({ error: true, text: 'That file is too large for a referral.' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || '').trim();
+      if (!text) {
+        setUploadNote({ error: true, text: 'That file was empty.' });
+        return;
+      }
+      setOrderText(text);
+      setParseDone(false);
+      setUploadNote({ error: false, text: `Loaded ${file.name} — parse it below.` });
+    };
+    reader.onerror = () => setUploadNote({ error: true, text: 'Could not read that file.' });
+    reader.readAsText(file);
+  };
+
   const [revealCount, setRevealCount] = useState({});
+  const conversationRef = useRef([]);
+  conversationRef.current = snapshot?.conversation || [];
 
   useEffect(() => {
-    if (!expandedClinic) return;
-    const total = turnsFor(expandedClinic).length;
-    setRevealCount((prev) => ({ ...prev, [expandedClinic]: prev[expandedClinic] ?? 0 }));
-
-    const timers = [];
-    for (let i = 1; i <= total; i++) {
-      timers.push(setTimeout(() => {
-        setRevealCount((prev) =>
-          (prev[expandedClinic] ?? 0) >= i ? prev : { ...prev, [expandedClinic]: i });
-      }, i * 700));
-    }
-    return () => timers.forEach(clearTimeout);
-  }, [expandedClinic, snapshot]);
+    if (!expandedClinic) return undefined;
+    const tick = setInterval(() => {
+      setRevealCount((prev) => {
+        const total = conversationRef.current
+          .filter((t) => t.clinicName === expandedClinic).length;
+        const shown = prev[expandedClinic] ?? 0;
+        if (shown >= total) return prev;
+        return { ...prev, [expandedClinic]: shown + 1 };
+      });
+    }, 650);
+    return () => clearInterval(tick);
+  }, [expandedClinic]);
 
   /** Turns for a clinic, limited to what's been revealed so far. */
   const visibleTurnsFor = (clinicName) => {
@@ -661,23 +700,44 @@ export default function Workspace() {
             />
           </div>
 
-          {/* Upload zone */}
+          {/* Upload zone — reads a text referral into the order box above.
+              Labelled for what it actually accepts: a control that swallows any
+              file and does nothing is worse than not having one. */}
           <div>
             <div style={{ fontSize: '0.62rem', color: 'rgba(26,13,30,0.85)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '7px' }}>
               Supporting Documentation
             </div>
-            <div style={{
-              padding: '16px', border: '1px dashed rgba(26,13,30,0.08)',
-              borderRadius: 'var(--radius-md)', display: 'flex',
-              flexDirection: 'column', alignItems: 'center', gap: '6px',
-              color: 'rgba(26,13,30,0.25)', cursor: 'pointer',
-              background: 'rgba(26,13,30,0.01)', transition: 'all 0.2s',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(166,139,196,0.35)'; e.currentTarget.style.background = 'rgba(166,139,196,0.03)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(26,13,30,0.08)'; e.currentTarget.style.background = 'rgba(26,13,30,0.01)'; }}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.md,.rtf,text/plain"
+              style={{ display: 'none' }}
+              onChange={(e) => handleReferralFile(e.target.files?.[0])}
+            />
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => stage === 1 && fileInputRef.current?.click()}
+              onKeyDown={(e) => { if (e.key === 'Enter' && stage === 1) fileInputRef.current?.click(); }}
+              onDragOver={(e) => { e.preventDefault(); }}
+              onDrop={(e) => { e.preventDefault(); if (stage === 1) handleReferralFile(e.dataTransfer.files?.[0]); }}
+              style={{
+                padding: '16px', border: `1px dashed ${uploadNote?.error ? 'rgba(244,63,94,0.4)' : 'rgba(26,13,30,0.08)'}`,
+                borderRadius: 'var(--radius-md)', display: 'flex',
+                flexDirection: 'column', alignItems: 'center', gap: '6px',
+                color: 'rgba(26,13,30,0.25)', cursor: stage === 1 ? 'pointer' : 'not-allowed',
+                opacity: stage === 1 ? 1 : 0.5,
+                background: 'rgba(26,13,30,0.01)', transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { if (stage === 1) { e.currentTarget.style.borderColor = 'rgba(166,139,196,0.35)'; e.currentTarget.style.background = 'rgba(166,139,196,0.03)'; } }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = uploadNote?.error ? 'rgba(244,63,94,0.4)' : 'rgba(26,13,30,0.08)'; e.currentTarget.style.background = 'rgba(26,13,30,0.01)'; }}
             >
               <UploadCloud size={18} color="rgba(166,139,196,0.6)" />
-              <div style={{ fontSize: '0.77rem' }}>Drop PDF referral or insurance card</div>
+              <div style={{ fontSize: '0.77rem', textAlign: 'center' }}>
+                {uploadNote
+                  ? <span style={{ color: uploadNote.error ? 'var(--accent-rose)' : 'var(--accent-emerald)' }}>{uploadNote.text}</span>
+                  : 'Drop a referral (.txt) or click to browse'}
+              </div>
             </div>
           </div>
 
