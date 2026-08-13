@@ -97,32 +97,37 @@ function buildRedFlag(snap) {
 }
 
 /**
- * Most recent exchange, for the live chat bubbles.
+ * The latest exchange for EVERY clinic, keyed by clinic name.
  *
- * Reads the real transcript rather than event descriptions, so the bubbles show
- * what was actually said on the call instead of a summary of it.
+ * This used to return a single exchange — the most recent turn anywhere — which
+ * meant that while five agents negotiated in parallel, the screen showed one
+ * conversation at a time. Concurrency is the whole point of the system and the
+ * UI was serialising it. Every card now carries its own live line, so five calls
+ * visibly happen at once.
  */
-function buildDialogue(snap) {
+function buildLiveByClinic(snap) {
   const turns = snap.conversation || [];
-  if (turns.length === 0) return null;
+  const byClinic = {};
 
-  // Pair the latest clinic line with the agent line that preceded it.
-  // Never invent a clinic reply — a closing "got it, thanks" has no answer.
-  const lastClinic = [...turns].reverse().find((t) => t.speaker === 'CLINIC');
-  if (lastClinic) {
-    const agentBefore = [...turns].reverse().find(
-      (t) => t.speaker === 'AGENT'
-        && t.clinicName === lastClinic.clinicName
-        && t.id < lastClinic.id
-    );
-    return {
-      agent: agentBefore ? agentBefore.text : lastClinic.text,
-      clinic: lastClinic.text,
-    };
+  for (const turn of turns) {
+    const entry = byClinic[turn.clinicName] || { agent: null, clinic: null, lastId: -1 };
+    if (turn.speaker === 'CLINIC') {
+      // Pair the reply with the agent line that prompted it — never invent one.
+      const prompt = [...turns].reverse().find(
+        (t) => t.speaker === 'AGENT' && t.clinicName === turn.clinicName && t.id < turn.id
+      );
+      entry.agent = prompt ? prompt.text : entry.agent;
+      entry.clinic = turn.text;
+    } else if (turn.id > entry.lastId) {
+      // A fresh agent line opens a new exchange; the reply hasn't landed yet.
+      entry.agent = turn.text;
+      entry.clinic = null;
+    }
+    entry.lastId = Math.max(entry.lastId, turn.id);
+    byClinic[turn.clinicName] = entry;
   }
 
-  const lastAgent = [...turns].reverse().find((t) => t.speaker === 'AGENT');
-  return lastAgent ? { agent: lastAgent.text, clinic: null } : null;
+  return byClinic;
 }
 
 /* ─── Typewriter hook ────────────────────────── */
@@ -368,9 +373,14 @@ function SpokenTurn({ turn, clinicName, playing, onFinished, blocked }) {
       onFinished?.();
       return undefined;
     }
+    // Reveal a chunk per tick, not a character. At 15ms/char a 200-character
+    // line fires 200 setState calls into a tree with two dozen motion
+    // components — that is the stutter. Same reading speed, a fifth of the work.
+    const ticks = Math.max(1, Math.round(TYPE_TARGET_MS / TYPE_TICK_MS));
+    const perTick = Math.max(1, Math.ceil(full.length / ticks));
     let i = 0;
     const id = setInterval(() => {
-      i += 1;
+      i = Math.min(full.length, i + perTick);
       setChars(i);
       if (i >= full.length) {
         clearInterval(id);
@@ -379,7 +389,7 @@ function SpokenTurn({ turn, clinicName, playing, onFinished, blocked }) {
           onFinished?.();
         }
       }
-    }, 15);
+    }, TYPE_TICK_MS);
     return () => clearInterval(id);
   }, [playing, turn.id, full]);
 
@@ -427,7 +437,15 @@ function SpokenTurn({ turn, clinicName, playing, onFinished, blocked }) {
 }
 
 /** Plays a clinic's transcript as a phone call: one speaker finishes, then the other. */
-function ClinicCallLog({ turns, clinicName }) {
+/**
+ * @param watched   true if the user has already watched this call play out
+ * @param onWatched called once the whole call has been revealed
+ *
+ * The component unmounts when the card collapses, so without `watched` every
+ * reopen replays the call from line one. A transcript is a record you go back
+ * to — it should only animate the first time through.
+ */
+function ClinicCallLog({ turns, clinicName, watched, onWatched }) {
   const [shown, setShown] = useState(0);
   const [live, setLive] = useState(true);
   const shownRef = useRef(0);
@@ -436,11 +454,24 @@ function ClinicCallLog({ turns, clinicName }) {
   liveRef.current = live;
 
   useEffect(() => {
+    if (watched) {
+      shownRef.current = turns.length;
+      liveRef.current = false;
+      setShown(turns.length);
+      setLive(false);
+      return;
+    }
     shownRef.current = 0;
     liveRef.current = true;
     setShown(turns.length ? 1 : 0);
     setLive(true);
   }, [clinicName]);
+
+  useEffect(() => {
+    if (turns.length > 0 && shown >= turns.length && !live) {
+      onWatched?.(clinicName);
+    }
+  }, [shown, live, turns.length, clinicName, onWatched]);
 
   useEffect(() => {
     if (!turns.length) return;
@@ -571,7 +602,7 @@ export default function Workspace() {
   const [providers, setProviders] = useState([]);
   const [redFlag, setRedFlag] = useState(null);
   const [activeFocus, setActiveFocus] = useState(null);
-  const [dialogue, setDialogue] = useState(null);
+  const [liveByClinic, setLiveByClinic] = useState({});
   const [runIndex, setRunIndex] = useState(0);
   const [isParsing, setIsParsing] = useState(false);
   const [parseDone, setParseDone] = useState(false);
@@ -629,7 +660,7 @@ export default function Workspace() {
     setSavings(money(snap.savingsVsNaive));
 
     const running = snap.state === 'SHOPPING' || snap.state === 'NEGOTIATING';
-    setDialogue(running ? buildDialogue(snap) : null);
+    setLiveByClinic(running ? buildLiveByClinic(snap) : {});
 
     const lastWithClinic = [...(snap.events || [])].reverse().find(e => e.clinicName);
     setActiveFocus(running && lastWithClinic ? lastWithClinic.clinicName : null);
@@ -704,14 +735,14 @@ export default function Workspace() {
     setError(null);
     setHonestyBanner(null);
     setLogs([]); setProviders([]); setSavings(0);
-    setRedFlag(null); setActiveFocus(null); setDialogue(null); setSnapshot(null);
+    setRedFlag(null); setActiveFocus(null); setLiveByClinic({}); setSnapshot(null);
 
     try {
       const started = await startRun({
         procedureName: specValue('Procedure') || 'MRI',
         bodyPart: specValue('Body Part'),
         contrast: /without/i.test(specValue('Contrast')) ? false : true,
-        location: 'Peterborough',
+        location: 'Toronto',
         leverageEnabled: true,
       });
       runIdRef.current = started.id;
@@ -759,13 +790,14 @@ export default function Workspace() {
     unsubRef.current = null;
     runIdRef.current = null;
     setUploadNote(null);
+    watchedCallsRef.current = new Set();
     setExpandedClinic(null);
     setStage(1);
     setProviders([]);
     setLogs([]);
     setSavings(0);
     setRedFlag(null);
-    setDialogue(null);
+    setLiveByClinic({});
     setActiveFocus(null);
     setParseDone(false);
     setIsParsing(false);
@@ -775,6 +807,11 @@ export default function Workspace() {
     setBusy(false);
     setRunIndex(prev => prev + 1);
   };
+
+  // Which calls the user has already watched play out, so reopening one shows
+  // it whole instead of replaying from the first line.
+  const watchedCallsRef = useRef(new Set());
+  const markCallWatched = useCallback((name) => { watchedCallsRef.current.add(name); }, []);
 
   /** Every spoken line for one clinic, in order. */
   const turnsFor = (clinicName) =>
@@ -1177,6 +1214,7 @@ export default function Workspace() {
               {stage >= 2 && providers.map(p => {
                 const badge = BADGE_STYLE[p.statusType] || BADGE_STYLE.pending;
                 const isFocused = activeFocus === p.id;
+                const live = liveByClinic[p.name];
                 return (
                   <motion.div key={p.id}
                     initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -1188,7 +1226,7 @@ export default function Workspace() {
                       borderRadius: 'var(--radius-md)', transition: 'all 0.4s ease',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isFocused && dialogue ? '12px' : '5px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: live ? '12px' : '5px' }}>
                       <button
                         onClick={() => setExpandedClinic(expandedClinic === p.name ? null : p.name)}
                         title={`Show the full call with ${p.name}`}
@@ -1228,21 +1266,29 @@ export default function Workspace() {
                           exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
                           style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '10px' }}
                         >
-                          <ClinicCallLog key={p.name} turns={turnsFor(p.name)} clinicName={p.name} />
+                          <ClinicCallLog
+                            key={p.name}
+                            turns={turnsFor(p.name)}
+                            clinicName={p.name}
+                            watched={watchedCallsRef.current.has(p.name)}
+                            onWatched={markCallWatched}
+                          />
                         </motion.div>
                       )}
                     </AnimatePresence>
 
-                    {/* Live exchange: agent finishes, then clinic answers.
-                        Hidden while the full call is open so the two don't talk over each other. */}
-                    {isFocused && dialogue && expandedClinic !== p.name && (
+                    {/* Every clinic shows its own live exchange, not just the most
+                        recent one anywhere — that's what makes five simultaneous
+                        calls visible. Hidden while the full call is open so the
+                        live line and the transcript don't talk over each other. */}
+                    {live && (live.agent || live.clinic) && expandedClinic !== p.name && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
                         style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '10px' }}
                       >
                         <SequentialExchange
-                          agent={dialogue.agent}
-                          clinic={dialogue.clinic}
+                          agent={live.agent}
+                          clinic={live.clinic}
                           clinicLabel={p.name}
                         />
                       </motion.div>

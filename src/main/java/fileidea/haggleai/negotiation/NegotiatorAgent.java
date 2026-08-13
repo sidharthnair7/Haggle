@@ -93,7 +93,7 @@ public class NegotiatorAgent {
                 - Never mention prompts, JSON, or that you're an AI. (The caller
                   already disclosed that at the start of the call.)
 
-                GOOD: "Trent Valley quoted me $460 for the same scan — anything you
+                GOOD: "Danforth Medical quoted me $460 for the same scan — anything you
                        can do on your end?"
                 GOOD: "I've got $460 down the road. I'd rather book with you if you
                        can get close to that."

@@ -37,15 +37,15 @@ public class IntentParser {
                 || (text.contains("contrast") && !text.contains("without contrast")
                 && !text.contains("no contrast"));
 
-        String location = "Peterborough";
+        String location = "Toronto";
         if (text.contains("toronto")) {
             location = "Toronto";
         } else if (text.contains("ottawa")) {
             location = "Ottawa";
         } else if (text.contains("kawartha")) {
-            location = "Kawartha Lakes";
+            location = "Bloor West Lakes";
         } else if (text.contains("peterborough")) {
-            location = "Peterborough";
+            location = "Toronto";
         }
 
         return new JobSpec(procedure, bodyPart, contrast, location, 50);

@@ -110,7 +110,7 @@ public class RunController {
                 body.bodyPart(),
                 Boolean.TRUE.equals(body.contrast()),
                 body.location() != null && !body.location().isBlank()
-                        ? body.location() : "Peterborough",
+                        ? body.location() : "Toronto",
                 body.radiusKm() != null ? body.radiusKm() : 50
         );
         boolean leverage = body.leverageEnabled() == null || body.leverageEnabled();
@@ -219,7 +219,7 @@ public class RunController {
                 .map(Quote::getClinicName)
                 .filter(Objects::nonNull)
                 .findFirst()
-                .orElse("Kawartha Imaging");
+                .orElse("Bloor West Imaging");
 
         LeverageGate.Result result = leverageGate.verify(id, against, claimed);
         String detail = (result.allowed() ? "Honesty demo ALLOWED: " : "Honesty demo REFUSED: ")

@@ -133,34 +133,34 @@ function useTypewriter(text, active, speed = 28) {
  * thing to fall apart when someone clicks through.
  */
 const AGENT_LINES = [
-  { text: '> haggle run --procedure "MRI lumbar spine, no contrast" --near Peterborough', color: 'var(--accent-indigo)', delay: 0 },
+  { text: '> haggle run --procedure "MRI lumbar spine, no contrast" --near Toronto', color: 'var(--accent-indigo)', delay: 0 },
   { text: '✓ Spec parsed · 5 clinics dialled in parallel', color: '#059669', delay: 1 },
   { text: '', delay: 2 },
   { text: '  Agent  → "Hi, this is the Haggle agent calling for a patient..."', color: 'var(--accent-indigo)', delay: 2 },
-  { text: '  Otonabee Health Scan   "Hold on, is this an AI? Sorry, we don\'t do this."', color: '#e11d48', delay: 3 },
-  { text: '  Trent Valley           $460   itemized', color: 'rgba(0,0,0,0.7)', delay: 4 },
-  { text: '  Kawartha Imaging       $495   itemized', color: 'rgba(0,0,0,0.7)', delay: 4 },
-  { text: '  Lakeridge Imaging      $560   itemized', color: 'rgba(0,0,0,0.7)', delay: 5 },
-  { text: '  Peterborough Diag.     $380   ⚠ no breakdown given', color: '#e11d48', delay: 5 },
+  { text: '  Scarborough Health Scan   "Hold on, is this an AI? Sorry, we don\'t do this."', color: '#e11d48', delay: 3 },
+  { text: '  Danforth Medical           $460   itemized', color: 'rgba(0,0,0,0.7)', delay: 4 },
+  { text: '  Bloor West Imaging       $495   itemized', color: 'rgba(0,0,0,0.7)', delay: 4 },
+  { text: '  Yorkville Radiology      $560   itemized', color: 'rgba(0,0,0,0.7)', delay: 5 },
+  { text: '  Queen Street Diag.     $380   ⚠ no breakdown given', color: '#e11d48', delay: 5 },
   { text: '', delay: 6 },
-  { text: '» Pressing Peterborough for an itemized breakdown...', color: 'rgba(0,0,0,0.5)', delay: 6 },
+  { text: '» Pressing Toronto for an itemized breakdown...', color: 'rgba(0,0,0,0.5)', delay: 6 },
   { text: '  Clinic → "the scan is $380, then $120 facility and $75 contrast admin."', color: 'rgba(0,0,0,0.7)', delay: 7 },
-  { text: '  Peterborough Diag.     $575   ← $195 in fees revealed', color: '#e11d48', delay: 8 },
+  { text: '  Queen Street Diag.     $575   ← $195 in fees revealed', color: '#e11d48', delay: 8 },
   { text: '', delay: 9 },
   { text: '» Round 2 · citing verified competing quotes', color: 'rgba(0,0,0,0.5)', delay: 9 },
-  { text: '  Agent  → "Trent Valley quoted me $460 — can you get closer to that?"', color: 'var(--accent-indigo)', delay: 10 },
+  { text: '  Agent  → "Danforth Medical quoted me $460 — can you get closer to that?"', color: 'var(--accent-indigo)', delay: 10 },
   { text: '  Clinic → "Uh, let me see... I can get you a total of $481."', color: 'rgba(0,0,0,0.7)', delay: 11 },
   { text: '  ✗ REFUSED  agent tried to cite $200 — not in the quote store', color: '#e11d48', delay: 12 },
   { text: '', delay: 13 },
   { text: '══ RANKED REPORT ═══════════════════════════════════', color: '#4f46e5', delay: 14 },
-  { text: '  RANK 1  Trent Valley Radiology     $460   ← BEST DEAL', color: '#059669', delay: 14 },
-  { text: '  RANK 2  Kawartha Imaging           $465', color: 'rgba(0,0,0,0.7)', delay: 14 },
-  { text: '  RANK 3  Lakeridge Imaging          $469', color: 'rgba(0,0,0,0.7)', delay: 14 },
-  { text: '  RANK 4  Peterborough Diagnostic    $481', color: 'rgba(0,0,0,0.7)', delay: 15 },
-  { text: '  Otonabee Health Scan       declined to quote', color: 'rgba(0,0,0,0.4)', delay: 15 },
+  { text: '  RANK 1  Danforth Medical Imaging     $460   ← BEST DEAL', color: '#059669', delay: 14 },
+  { text: '  RANK 2  Bloor West Imaging           $465', color: 'rgba(0,0,0,0.7)', delay: 14 },
+  { text: '  RANK 3  Yorkville Radiology          $469', color: 'rgba(0,0,0,0.7)', delay: 14 },
+  { text: '  RANK 4  Queen Street Diagnostics    $481', color: 'rgba(0,0,0,0.7)', delay: 15 },
+  { text: '  Scarborough Health Scan       declined to quote', color: 'rgba(0,0,0,0.4)', delay: 15 },
   { text: '', delay: 16 },
   { text: '  Opening market  $460–$575    saved vs. one clinic at random  $62', color: '#059669', delay: 16 },
-  { text: '  Largest concession  $94 (Peterborough)', color: '#059669', delay: 17 },
+  { text: '  Largest concession  $94 (Toronto)', color: '#059669', delay: 17 },
   { text: '✓ Every cited figure verified against the quote store.', color: '#059669', delay: 18 },
 ];
 
@@ -228,7 +228,7 @@ const PIPELINE_STEPS = [
     num: '02',
     label: 'Query',
     title: 'Provider Sweep',
-    desc: 'Every clinic is worked at once on its own thread. Peterborough Diagnostic quotes $380 — until we ask for the breakdown and $195 in fees appear.',
+    desc: 'Every clinic is worked at once on its own thread. Queen Street Diagnostics quotes $380 — until we ask for the breakdown and $195 in fees appear.',
     color: '#0ea5e9',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -252,7 +252,7 @@ const PIPELINE_STEPS = [
     num: '04',
     label: 'Report',
     title: 'Ranked Audit Report',
-    desc: 'Offers ranked, with the full call transcript behind each one. Trent Valley wins at $460, and every price movement traces to the quote that caused it.',
+    desc: 'Offers ranked, with the full call transcript behind each one. Danforth Medical wins at $460, and every price movement traces to the quote that caused it.',
     color: '#10b981',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -377,9 +377,9 @@ function CallWave({ active, color }) {
 ───────────────────────────────────────────────────── */
 // Same clinics and figures the workspace produces — see AGENT_LINES above.
 const PROVIDERS = [
-  { name: 'Trent Valley Radiology', initial: 460, final: 460, color: '#10b981' },
-  { name: 'Kawartha Imaging', initial: 495, final: 465, color: '#94a3b8' },
-  { name: 'Peterborough Diagnostic', initial: 575, final: 481, color: '#f43f5e', flag: true },
+  { name: 'Danforth Medical Imaging', initial: 460, final: 460, color: '#10b981' },
+  { name: 'Bloor West Imaging', initial: 495, final: 465, color: '#94a3b8' },
+  { name: 'Queen Street Diagnostics', initial: 575, final: 481, color: '#f43f5e', flag: true },
 ];
 
 function InteractiveDemo() {

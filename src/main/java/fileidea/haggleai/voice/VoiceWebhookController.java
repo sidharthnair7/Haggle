@@ -60,7 +60,7 @@ public class VoiceWebhookController {
                     <?xml version="1.0" encoding="UTF-8"?>
                     <Response>
                       <Gather input="speech" timeout="4" speechTimeout="auto" action="%s" method="POST">
-                        <Say voice="Polly.Joanna">Sorry, I missed that. Try saying something like M R I of the lumbar spine near Peterborough.</Say>
+                        <Say voice="Polly.Joanna">Sorry, I missed that. Try saying something like M R I of the lumbar spine near Toronto.</Say>
                       </Gather>
                       <Say voice="Polly.Joanna">Still nothing. Goodbye.</Say>
                     </Response>

@@ -8,7 +8,7 @@
 # persona        shapes how the agent talks and whether it itemizes up front
 # concessionRate how much of the gap to a cited competing quote they'll close
 clinics:
-  - name: "Kawartha Imaging"
+  - name: "Bloor West Imaging"
     persona: STRAIGHT_SHOOTER
     openingTotal: 495
     floor: 395
@@ -18,7 +18,7 @@ clinics:
         amount: 95
     itemizesUpFront: true
 
-  - name: "Peterborough Diagnostic Centre"
+  - name: "Queen Street Diagnostics"
     persona: LOWBALLER_HIDDEN_FEES
     openingTotal: 380
     floor: 340
@@ -30,7 +30,7 @@ clinics:
         amount: 75
     itemizesUpFront: false
 
-  - name: "Lakeridge Medical Imaging"
+  - name: "Yorkville Radiology"
     persona: HARD_SELL_UPSELLER
     openingTotal: 610
     floor: 430
@@ -45,7 +45,7 @@ clinics:
   # Refuses once the agent discloses it's automated. Replaces the plain
   # stonewaller rather than adding to it — two of five clinics refusing would
   # be more friction than the demo can carry, and this is the better reason.
-  - name: "Otonabee Health Scan"
+  - name: "Scarborough Health Scan"
     persona: REFUSES_AI_CALLERS
     openingTotal: 0
     floor: 0
@@ -53,7 +53,7 @@ clinics:
     fees: []
     itemizesUpFront: false
 
-  - name: "Trent Valley Radiology"
+  - name: "Danforth Medical Imaging"
     persona: STRAIGHT_SHOOTER
     openingTotal: 460
     floor: 410

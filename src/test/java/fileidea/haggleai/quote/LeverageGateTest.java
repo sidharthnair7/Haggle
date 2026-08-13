@@ -25,8 +25,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class LeverageGateTest {
 
-    private static final String AGAINST = "Lakeridge Medical Imaging";
-    private static final String RIVAL = "Trent Valley Radiology";
+    private static final String AGAINST = "Yorkville Radiology";
+    private static final String RIVAL = "Danforth Medical Imaging";
 
     @Mock
     private QuoteRepository quoteRepository;
@@ -138,7 +138,7 @@ class LeverageGateTest {
     @DisplayName("picks the matching quote when several clinics are on file")
     void findsTheRightQuoteAmongMany() {
         Quote cheap = itemized(RIVAL, 460);
-        Quote mid = itemized("Kawartha Imaging", 495);
+        Quote mid = itemized("Bloor West Imaging", 495);
         storeHolds(cheap, mid);
 
         assertThat(gate.verify(runId, AGAINST, 495).provenance()).isSameAs(mid);
