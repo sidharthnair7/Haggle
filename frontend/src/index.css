@@ -810,6 +810,30 @@ img, video { display: block; max-width: 100%; }
   filter: drop-shadow(0 0 20px rgba(99, 102, 241, 0.3));
 }
 
+.preloader__hex {
+  fill: none;
+  stroke: rgba(99, 102, 241, 0.18);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.preloader__trace {
+  fill: none;
+  stroke: #6366F1;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  /* pathLength is 100 — draw the whole outline once, left → right */
+  stroke-dasharray: 100 100;
+  stroke-dashoffset: 100;
+  animation: preloader-trace 0.8s linear forwards;
+}
+
+@keyframes preloader-trace {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+
 .preloader__brand {
   font-family: var(--font-display);
   font-weight: 700;
@@ -1013,6 +1037,9 @@ img, video { display: block; max-width: 100%; }
   }
   .preloader {
     display: none;
+  }
+  .preloader__trace {
+    animation: none;
   }
   .magnetic-ripple {
     animation: none;

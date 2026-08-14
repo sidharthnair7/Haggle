@@ -1,21 +1,21 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
-const HOLD_MS = 550;
-const WIPE_MS = 450;
+const TRACE_MS = 800;
+const WIPE_MS = 500;
 
 /**
  * The page underneath finishes rendering in about 95ms, so this is a brand
- * moment, not a loading screen — it must never outlast what it covers. The
- * previous version sat on a flat 1900ms timer, which meant roughly 1.9s of
- * blank white over a site that was already fully painted.
+ * moment, not a loading screen — it must never outlast what it covers.
+ *
+ * The stroke starts on the left vertex and draws clockwise (across the top,
+ * left → right). The hold equals that draw. The instant it finishes, the
+ * panel slides off to the right so the landing page comes up on the same beat.
  *
  * Timers drive the phase changes and the unmount; the animation only decorates
- * them. That ordering matters: framer-motion runs on requestAnimationFrame,
- * which browsers throttle hard in background tabs, so hanging the unmount off
- * an animation callback would strand anyone who opens the link in a background
- * tab behind an opaque panel. Worst case here, the panel simply disappears on
- * schedule without the wipe.
+ * them. Framer-motion runs on requestAnimationFrame, which browsers throttle
+ * in background tabs, so hanging the unmount off an animation callback would
+ * strand anyone who opens the link in a background tab behind an opaque panel.
  */
 export default function Preloader({ onComplete }) {
   const [leaving, setLeaving] = useState(false);
@@ -26,8 +26,8 @@ export default function Preloader({ onComplete }) {
       return undefined;
     }
 
-    const wipe = setTimeout(() => setLeaving(true), HOLD_MS);
-    const done = setTimeout(() => onComplete?.(), HOLD_MS + WIPE_MS);
+    const wipe = setTimeout(() => setLeaving(true), TRACE_MS);
+    const done = setTimeout(() => onComplete?.(), TRACE_MS + WIPE_MS);
 
     return () => {
       clearTimeout(wipe);
@@ -35,49 +35,25 @@ export default function Preloader({ onComplete }) {
     };
   }, [onComplete]);
 
+  // Apex first — the logo's natural start. The previous path opened on the
+  // upper-left vertex, one point left of where the mark should begin.
+  const hex = "M12 2 L22 8.5 L22 15.5 L12 22 L2 15.5 L2 8.5 Z";
+
   return (
     <motion.div
       className="preloader"
-      initial={{ y: '0%' }}
-      animate={{ y: leaving ? '-100%' : '0%' }}
+      initial={{ x: '0%' }}
+      animate={{ x: leaving ? '100%' : '0%' }}
       transition={{ duration: WIPE_MS / 1000, ease: [0.76, 0, 0.24, 1] }}
     >
-      <motion.div
-        className="preloader__content"
-        animate={{ opacity: leaving ? 0 : 1 }}
-        transition={{ duration: 0.2 }}
-      >
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" className="preloader__logo">
-          <motion.polygon
-            points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"
-            stroke="#6366F1"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-            initial={{ pathLength: 0, opacity: 0.3 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          />
-          <motion.polygon
-            points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"
-            fill="rgba(99, 102, 241, 0.08)"
-            stroke="none"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3, delay: 0.25 }}
-          />
+      <div className="preloader__content">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" className="preloader__logo" aria-hidden="true">
+          <path d={hex} className="preloader__hex" />
+          <path d={hex} pathLength="100" className="preloader__trace" />
         </svg>
 
-        <motion.span
-          className="preloader__brand"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 0.6, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
-        >
-          Haggle
-        </motion.span>
-      </motion.div>
+        <span className="preloader__brand">Haggle</span>
+      </div>
     </motion.div>
   );
 }
