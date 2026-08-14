@@ -747,8 +747,13 @@ export default function LandingPage() {
               color: 'var(--accent-indigo)',
               backdropFilter: 'blur(8px)',
             }}>
+              {/* Was "hackathon demo · simulated clinics". The simulation is
+                  still disclosed twice below, in better words, because those
+                  also say what's real. This one only said what was fake, and
+                  calling yourself a demo above your own headline invites people
+                  to grade you as one. */}
               <div className="status-dot indigo" style={{ width: '5px', height: '5px' }} />
-              hackathon demo · simulated clinics
+              five clinics · one call · under 30 seconds
             </div>
           </motion.div>
 
