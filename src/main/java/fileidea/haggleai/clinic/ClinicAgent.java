@@ -84,9 +84,13 @@ public class ClinicAgent {
                                 + ". Never below the floor, and never higher than your own "
                                 + "previous offer. Return ITEMIZED line items for the new total.");
 
-                // Code wall: a leverage response may not raise the price.
-                if (quote.getOutcome() == Quote.Outcome.ITEMIZED
-                        && quote.total() > currentTotal + 0.009) {
+                // Code wall: a leverage response may not raise the price. This
+                // deliberately ignores the outcome. Gating it on ITEMIZED left a
+                // gap where a BUNDLED reply could come back higher than the
+                // clinic's own previous offer and be accepted, which is the exact
+                // thing the wall exists to stop. The floor check below is
+                // outcome-agnostic for the same reason.
+                if (quote.total() > currentTotal + 0.009) {
                     log.info("Rejected price increase from {} ({} > {}) — falling back to policy",
                             profile.name(), quote.total(), currentTotal);
                     return deterministicLeverage(runId, profile, spec, currentTotal,
