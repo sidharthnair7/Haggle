@@ -674,6 +674,24 @@ export default function Workspace() {
   // Tear the stream down if the user navigates away mid-run.
   useEffect(() => () => { unsubRef.current?.(); clearTimeouts(); }, []);
 
+  // Belt and braces on the request timeout in api.js. That one covers a backend
+  // that never answers; this covers a run that is accepted and then produces
+  // nothing, which would otherwise leave the dialling placeholders up forever
+  // with no way to tell something had gone wrong.
+  useEffect(() => {
+    if (!starting) return undefined;
+    const watchdog = setTimeout(() => {
+      if (providersRef.current.length === 0) {
+        setError('The run started but no clinic reported back. The service may be '
+          + 'restarting — wait a moment and hit New Run.');
+        setStarting(false);
+        setBusy(false);
+        setStage(1);
+      }
+    }, 25000);
+    return () => clearTimeout(watchdog);
+  }, [starting]);
+
   const specValue = (label) => specItems.find(s => s.label === label)?.value || '';
 
   /** One place that turns a backend snapshot into everything the UI renders. */

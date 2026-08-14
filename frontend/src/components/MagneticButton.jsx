@@ -14,6 +14,10 @@ export default function MagneticButton({
   strength = 0.3,
   radius = 120,
   as: Tag = 'button',
+  // Pulled out of the rest so it isn't spread onto the DOM node. It's a styling
+  // prop for this component, not an HTML attribute, and React logged a warning
+  // for every button on the landing page because it was reaching the element.
+  buttonStyle = {},
   ...props
 }) {
   const ref = useRef(null);
@@ -65,7 +69,7 @@ export default function MagneticButton({
       whileTap={{ scale: 0.97 }}
       transition={{ type: 'spring', stiffness: 400, damping: 20 }}
     >
-      <Tag {...props} className={className} onClick={handleClick} style={{ ...(props.buttonStyle || {}), position: 'relative', overflow: 'hidden' }}>
+      <Tag {...props} className={className} onClick={handleClick} style={{ ...buttonStyle, position: 'relative', overflow: 'hidden' }}>
         {children}
         {/* Ripple effect */}
         {ripple && (
