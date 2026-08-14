@@ -34,6 +34,14 @@ export default function Navbar() {
 
   const spring = { type: 'spring', bounce: 0.1, duration: 0.42 };
 
+  // The workspace has its own sticky header carrying the same logo and a Home
+  // link. Two navs is one too many, and this one is position:fixed, so clinic
+  // dialogue scrolled underneath and got covered mid-sentence. The sticky
+  // header doesn't have that problem: content stops beneath it.
+  if (isWorkspace) {
+    return null;
+  }
+
   return (
     <motion.div
       animate={{ top: scrolled ? '12px' : '24px' }}

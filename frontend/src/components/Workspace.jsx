@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Check, AlertTriangle, UploadCloud, Edit2,
   PlayCircle, Shield, FileText, Activity, Bot, User,
-  BarChart2, RefreshCw, ChevronRight, Copy, Download
+  BarChart2, RefreshCw, ChevronRight, Copy, Download, Home
 } from 'lucide-react';
 import './Workspace.css';
 import { startRun, getRun, subscribeRunEvents, tryBluff } from '../api';
@@ -983,7 +983,7 @@ export default function Workspace() {
   return (
     <div style={{
       minHeight: '100vh', background: 'var(--bg-primary)', color: 'var(--text-primary)',
-      paddingTop: '80px', display: 'flex', flexDirection: 'column',
+      display: 'flex', flexDirection: 'column',
     }}>
 
       {/* ─── TOP HEADER BAR ─── */}
@@ -991,19 +991,33 @@ export default function Workspace() {
         padding: '0 28px', height: '56px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         borderBottom: '1px solid rgba(26,13,30,0.08)',
-        // A 2% tint left the blur showing whatever scrolled underneath, so the
-        // medical order and the red-flag banner smeared through the bar and it
-        // read as a rendering fault. Opaque enough to actually be a surface.
-        background: 'rgba(250,250,250,0.94)',
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
-        position: 'sticky', top: '80px', zIndex: 20,
+        // A 2% tint left text legible through the bar, which read as a
+        // rendering fault. Going nearly opaque fixed that but turned a floating
+        // glass bar into a white slab. Let the blur do the work instead: enough
+        // of it that anything underneath becomes a wash rather than words,
+        // while the surface still reads as translucent.
+        background: 'rgba(250,250,250,0.72)',
+        backdropFilter: 'blur(22px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(22px) saturate(180%)',
+        position: 'sticky', top: 0, zIndex: 20,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(166,139,196,0.18)" stroke="#A68BC4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5" />
-          </svg>
-          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.88rem', letterSpacing: '0.08em', color: 'rgba(26,13,30,0.9)' }}>Haggle</span>
+          {/* Carries the Home affordance the floating pill used to provide. */}
+          <a
+            href="/"
+            title="Back to the landing page"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              textDecoration: 'none', opacity: 1, transition: 'opacity 0.2s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.opacity = '0.65'}
+            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(166,139,196,0.18)" stroke="#A68BC4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5" />
+            </svg>
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.88rem', letterSpacing: '0.08em', color: 'rgba(26,13,30,0.9)' }}>Haggle</span>
+          </a>
           <span style={{ color: 'rgba(26,13,30,0.15)', margin: '0 4px' }}>/</span>
           <span style={{ fontSize: '0.82rem', color: 'rgba(26,13,30,0.85)' }}>Agent Workspace</span>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'rgba(26,13,30,0.85)', marginLeft: '6px' }}>
@@ -1014,6 +1028,22 @@ export default function Workspace() {
         <StepBar stage={stage} />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Explicit Home, so removing the floating pill costs no navigation. */}
+          <a
+            href="/"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '6px 14px', background: 'rgba(26,13,30,0.05)',
+              border: '1px solid rgba(26,13,30,0.1)', borderRadius: 'var(--radius-pill)',
+              color: 'rgba(26,13,30,0.55)', fontSize: '0.78rem', fontWeight: 500,
+              textDecoration: 'none', transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(26,13,30,0.1)'; e.currentTarget.style.color = '#1a0d1e'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(26,13,30,0.05)'; e.currentTarget.style.color = 'rgba(26,13,30,0.55)'; }}
+          >
+            <Home size={11} /> Home
+          </a>
+
           <button
             onClick={resetAll}
             style={{
