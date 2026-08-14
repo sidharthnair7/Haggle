@@ -208,14 +208,17 @@ public class RunController {
 
     @PostMapping("/{id}/bluff")
     public BluffResponse bluff(@PathVariable UUID id, @RequestBody(required = false) BluffRequest body) {
-        if (runRepository.findById(id).isEmpty()) {
-            throw new NoSuchElementException("Run not found: " + id);
-        }
+        Run run = runRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Run not found: " + id));
 
         double claimed = body != null && body.claimedTotal() != null ? body.claimedTotal() : 200.0;
+        // Falling back to whichever quote landed first picked an arbitrary
+        // clinic — often the one that refused to quote at all, which makes for
+        // a confusing demo. Prefer a clinic that actually gave a citable price.
         String against = body != null && body.againstClinic() != null && !body.againstClinic().isBlank()
                 ? body.againstClinic()
                 : quoteRepository.findByRunIdOrderByCapturedAtAsc(id).stream()
+                .filter(Quote::citable)
                 .map(Quote::getClinicName)
                 .filter(Objects::nonNull)
                 .findFirst()
@@ -233,6 +236,25 @@ public class RunController {
                 detail,
                 claimed
         ));
+
+        // Write the same turn the agent's own refused attempts write, so the
+        // transcript shows the sentence that was composed and never sent. This
+        // used to produce only a banner and a log row, which left the one
+        // moment that proves the gate is structural with nothing to look at.
+        if (!result.allowed()) {
+            // Tag it with the round the run actually reached. Filing it under
+            // round 0 made the transcript draw a "callback · round 0" divider
+            // above it, which is neither a callback nor a real round.
+            conversationRepository.save(new ConversationTurn(
+                    id,
+                    against,
+                    Math.max(1, run.getRound()),
+                    ConversationTurn.Speaker.AGENT,
+                    "[blocked before speaking] tried to cite $" + (int) claimed
+                            + ", which no clinic on this run actually quoted.",
+                    claimed
+            ));
+        }
 
         return new BluffResponse(
                 result.allowed(),

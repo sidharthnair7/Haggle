@@ -93,7 +93,11 @@ function buildRedFlag(snap) {
 
   const hidden = money(revealed.total) - money(bundled.total);
   if (hidden <= 0) return null;
-  return `${pressed.clinicName} quoted $${money(bundled.total)} up front, then added $${hidden} in fees once we asked for the full breakdown.`;
+  return {
+    clinicName: pressed.clinicName,
+    revealedTotal: money(revealed.total),
+    text: `${pressed.clinicName} quoted $${money(bundled.total)} up front, then added $${hidden} in fees once we asked for the full breakdown.`,
+  };
 }
 
 /**
@@ -329,7 +333,7 @@ function StreamingBubble({ text, color, label, onDone }) {
 }
 
 /** Live card: agent finishes speaking, then the clinic answers. */
-function SequentialExchange({ agent, clinic, clinicLabel }) {
+function SequentialExchange({ agent, clinic, clinicLabel, onShown }) {
   const [clinicReady, setClinicReady] = useState(false);
   useEffect(() => {
     setClinicReady(false);
@@ -355,6 +359,7 @@ function SequentialExchange({ agent, clinic, clinicLabel }) {
           </div>
           <StreamingBubble
             text={clinic}
+            onDone={onShown}
             color={{ bg: 'rgba(26,13,30,0.06)', border: 'rgba(26,13,30,0.08)', text: 'rgba(26,13,30,0.35)' }}
             label={clinicLabel || 'Clinic Rep'}
           />
@@ -367,7 +372,10 @@ function SequentialExchange({ agent, clinic, clinicLabel }) {
 /** One spoken line in the expanded call log. Finished lines stay fully visible. */
 function SpokenTurn({ turn, clinicName, playing, onFinished, blocked }) {
   const isAgent = turn.speaker === 'AGENT';
-  const full = turn.text || '';
+  // The "[blocked before speaking]" marker is how the backend tags the turn;
+  // the bubble already says so in its label, so showing the raw tag as well
+  // reads like leaked debug output.
+  const full = (turn.text || '').replace(/^\[blocked before speaking\]\s*/, '');
   const [chars, setChars] = useState(playing ? 0 : full.length);
   const finished = useRef(false);
 
@@ -434,9 +442,11 @@ function SpokenTurn({ turn, clinicName, playing, onFinished, blocked }) {
           color: blocked ? 'var(--accent-rose)' : isAgent ? 'var(--accent-indigo)' : 'rgba(26,13,30,0.32)',
         }}>
           {blocked ? 'Blocked by leverage gate' : isAgent ? 'Haggle Agent' : clinicName}
-          <span style={{ fontWeight: 500, letterSpacing: 0, textTransform: 'none', opacity: 0.7 }}>
-            {' '}· round {turn.round}
-          </span>
+          {turn.round > 0 && (
+            <span style={{ fontWeight: 500, letterSpacing: 0, textTransform: 'none', opacity: 0.7 }}>
+              {' '}· round {turn.round}
+            </span>
+          )}
         </div>
         {full.slice(0, chars)}
         {playing && chars < full.length && <span style={{ opacity: 0.35 }}>█</span>}
@@ -591,11 +601,27 @@ const BADGE_STYLE = {
 export default function Workspace() {
   const [stage, setStage] = useState(1);
   const [savings, setSavings] = useState(0);
+  const [savingsVsRandom, setSavingsVsRandom] = useState(0);
   const [logs, setLogs] = useState([]);
   const [providers, setProviders] = useState([]);
   const [redFlag, setRedFlag] = useState(null);
   const [activeFocus, setActiveFocus] = useState(null);
   const [liveByClinic, setLiveByClinic] = useState({});
+
+  // What each clinic card is currently allowed to show for badge and bid.
+  //
+  // Those come from the snapshot, which lands instantly, while the bubble under
+  // them is typed out over ~2.2s. Reading the snapshot directly meant a card
+  // could say "PRICE REDUCED · $474" while the agent was still typing the line
+  // that would ask for the discount — the outcome arriving before its cause.
+  // Advancing this only when an exchange finishes playing puts the number back
+  // on the sentence that earned it.
+  const [shownByClinic, setShownByClinic] = useState({});
+  const providersRef = useRef([]);
+
+  // Set once per run, so re-polls after completion can't keep yanking the card
+  // back open after the user has closed it or opened a different one.
+  const autoExpandedRef = useRef(false);
   const [runIndex, setRunIndex] = useState(0);
   const [isParsing, setIsParsing] = useState(false);
   const [parseDone, setParseDone] = useState(false);
@@ -647,10 +673,21 @@ export default function Workspace() {
   const applySnapshot = useCallback((snap) => {
     setSnapshot(snap);
     const winnerName = snap.winner?.clinicName || null;
-    setProviders(buildProviders(snap, winnerName));
+    const next = buildProviders(snap, winnerName);
+    providersRef.current = next;
+    setProviders(next);
     setLogs(buildLogs(snap));
     setRedFlag(buildRedFlag(snap));
-    setSavings(money(snap.savingsVsNaive));
+
+    // The headline dollars, the percentage, and the caption all have to be the
+    // same comparison. They used to be three different ones — dollars vs. the
+    // average opening, percent vs. the highest opening, caption claiming the
+    // highest — so the card read "$89 −31% vs. the highest opening quote of
+    // $667". Those don't reconcile, and it understated the result by half.
+    const openingHigh = money(snap.openingHigh);
+    const winnerTotal = money(snap.winner?.total);
+    setSavings(openingHigh > 0 && winnerTotal > 0 ? Math.max(0, openingHigh - winnerTotal) : 0);
+    setSavingsVsRandom(money(snap.savingsVsNaive));
 
     const running = snap.state === 'SHOPPING' || snap.state === 'NEGOTIATING';
     setLiveByClinic(running ? buildLiveByClinic(snap) : {});
@@ -661,7 +698,40 @@ export default function Workspace() {
     if (!running && (snap.state === 'READY' || snap.state === 'PARTIAL' || snap.state === 'FAILED')) {
       setStage(3);
       setBusy(false);
+
+      // Every card collapsed to a one-line header the moment the run finished,
+      // so the transcripts — the part that took the most work — were invisible
+      // exactly when someone is looking at the result. Open the winning call by
+      // default; it's the one the report is about.
+      if (!autoExpandedRef.current && winnerName) {
+        autoExpandedRef.current = true;
+        setExpandedClinic(winnerName);
+      }
     }
+  }, []);
+
+  /**
+   * An exchange finished playing on screen, so this clinic's card may now catch
+   * up to whatever the snapshot says. Reads the live ref rather than closing
+   * over `providers`, which would pin it to the values from first render.
+   */
+  const markExchangeShown = useCallback((clinicName) => {
+    const current = providersRef.current.find((x) => x.name === clinicName);
+    if (!current) return;
+    setShownByClinic((prev) => {
+      const was = prev[clinicName];
+      if (was && was.price === current.price && was.status === current.status) {
+        return prev; // nothing moved — don't churn a render
+      }
+      return {
+        ...prev,
+        [clinicName]: {
+          price: current.price,
+          status: current.status,
+          statusType: current.statusType,
+        },
+      };
+    });
   }, []);
 
   const refreshSnapshot = useCallback(async (id) => {
@@ -729,6 +799,7 @@ export default function Workspace() {
     setHonestyBanner(null);
     setLogs([]); setProviders([]); setSavings(0);
     setRedFlag(null); setActiveFocus(null); setLiveByClinic({}); setSnapshot(null);
+    setShownByClinic({}); providersRef.current = []; autoExpandedRef.current = false;
 
     try {
       const started = await startRun({
@@ -770,6 +841,12 @@ export default function Workspace() {
       const res = await tryBluff(runIdRef.current, { claimedTotal: 200 });
       setHonestyBanner(res);
       await refreshSnapshot(runIdRef.current);
+      // The refusal now writes a real blocked turn into that clinic's
+      // transcript, so open it — otherwise the proof sits behind a click
+      // nobody makes during a demo.
+      if (!res.allowed && res.againstClinic) {
+        setExpandedClinic(res.againstClinic);
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -790,6 +867,9 @@ export default function Workspace() {
     setSavings(0);
     setRedFlag(null);
     setLiveByClinic({});
+    setShownByClinic({});
+    providersRef.current = [];
+    autoExpandedRef.current = false;
     setActiveFocus(null);
     setParseDone(false);
     setIsParsing(false);
@@ -861,6 +941,14 @@ export default function Workspace() {
     ...providers.map(p => p.initialPrice || 0),
     1
   );
+  // Once the run is over there is no pacing left to respect. While it's live,
+  // wait until the flagged clinic's card has actually revealed the itemized
+  // total the warning is about.
+  const redFlagVisible = redFlag && (
+    Object.keys(liveByClinic).length === 0
+    || money(shownByClinic[redFlag.clinicName]?.price) >= redFlag.revealedTotal
+  );
+
   const openingHigh = money(snapshot?.openingHigh);
   const savingsPercent = openingHigh > 0 && snapshot?.winner
     ? Math.max(0, Math.round((1 - money(snapshot.winner.total) / openingHigh) * 100))
@@ -873,7 +961,8 @@ export default function Workspace() {
         .map((p, i) => `RANK ${i + 1}: ${p.name} — ${p.price ? `$${p.price}` : p.status}${p.statusType === 'warn' ? ' [FLAGGED: no breakdown]' : i === 0 ? ' ← BEST DEAL' : ''}`)
         .join('\n') +
       `\n\nOpening market: $${money(snapshot?.openingLow)}–$${openingHigh}` +
-      `\nSaved vs calling one clinic at random: $${savings}` +
+      `\nSaved vs the highest opening quote: $${savings}` +
+      `\nSaved vs calling one clinic at random: $${savingsVsRandom}` +
       (snapshot?.biggestConcessionClinic
         ? `\nLargest single concession: $${money(snapshot.biggestConcession)} (${snapshot.biggestConcessionClinic})`
         : '') +
@@ -890,10 +979,14 @@ export default function Workspace() {
       <header style={{
         padding: '0 28px', height: '56px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        borderBottom: '1px solid rgba(26,13,30,0.06)',
-        background: 'rgba(26,13,30,0.02)',
-        backdropFilter: 'blur(12px)',
-        position: 'sticky', top: '80px', zIndex: 10,
+        borderBottom: '1px solid rgba(26,13,30,0.08)',
+        // A 2% tint left the blur showing whatever scrolled underneath, so the
+        // medical order and the red-flag banner smeared through the bar and it
+        // read as a rendering fault. Opaque enough to actually be a surface.
+        background: 'rgba(250,250,250,0.94)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        position: 'sticky', top: '80px', zIndex: 20,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(166,139,196,0.18)" stroke="#A68BC4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1181,9 +1274,12 @@ export default function Workspace() {
             </div>
           )}
 
-          {/* Red Flag */}
+          {/* Red Flag — held back until the card it describes has caught up.
+              It used to appear as soon as the data existed, which announced
+              the hidden fees before that clinic's conversation had rendered at
+              all: the reveal spoiled itself. */}
           <AnimatePresence>
-            {redFlag && (
+            {redFlagVisible && (
               <motion.div
                 initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -1196,7 +1292,7 @@ export default function Workspace() {
                 }}
               >
                 <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
-                <div><strong>Red Flag:</strong> {redFlag}</div>
+                <div><strong>Red Flag:</strong> {redFlag.text}</div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -1205,9 +1301,20 @@ export default function Workspace() {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '9px', overflowY: 'auto' }}>
             <AnimatePresence>
               {stage >= 2 && providers.map(p => {
-                const badge = BADGE_STYLE[p.statusType] || BADGE_STYLE.pending;
-                const isFocused = activeFocus === p.id;
                 const live = liveByClinic[p.name];
+                const isLive = !!(live && (live.agent || live.clinic));
+
+                // Mid-run the card shows only what has finished playing; before
+                // the first reply lands that is genuinely nothing yet. Once the
+                // run ends there is no exchange left to wait on, so it falls
+                // back to the snapshot and always settles on the real result.
+                const view = isLive
+                  ? (shownByClinic[p.name]
+                      || { price: null, status: 'Awaiting response', statusType: 'pending' })
+                  : p;
+
+                const badge = BADGE_STYLE[view.statusType] || BADGE_STYLE.pending;
+                const isFocused = activeFocus === p.id;
                 return (
                   <motion.div key={p.id}
                     initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -1246,7 +1353,7 @@ export default function Workspace() {
                         )}
                       </button>
                       <span style={{ padding: '2px 8px', borderRadius: 'var(--radius-pill)', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.06em', background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
-                        {p.status.toUpperCase()}
+                        {view.status.toUpperCase()}
                       </span>
                     </div>
 
@@ -1272,7 +1379,7 @@ export default function Workspace() {
                         recent one anywhere — that's what makes five simultaneous
                         calls visible. Hidden while the full call is open so the
                         live line and the transcript don't talk over each other. */}
-                    {live && (live.agent || live.clinic) && expandedClinic !== p.name && (
+                    {isLive && expandedClinic !== p.name && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
                         style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '10px' }}
@@ -1281,15 +1388,22 @@ export default function Workspace() {
                           agent={live.agent}
                           clinic={live.clinic}
                           clinicLabel={p.name}
+                          onShown={() => markExchangeShown(p.name)}
                         />
                       </motion.div>
                     )}
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ fontSize: '0.68rem', color: 'rgba(26,13,30,0.28)' }}>Current Bid</div>
-                      <div style={{ fontSize: '1rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: isFocused ? 'var(--accent-emerald)' : p.statusType === 'warn' ? 'var(--accent-rose)' : 'rgba(26,13,30,0.75)' }}>
-                        {p.price ? `$${p.price}` : '—'}
-                      </div>
+                      <motion.div
+                        key={view.price ?? 'none'}
+                        initial={{ scale: 1.14 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                        style={{ fontSize: '1rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: isFocused ? 'var(--accent-emerald)' : view.statusType === 'warn' ? 'var(--accent-rose)' : 'rgba(26,13,30,0.75)' }}
+                      >
+                        {view.price ? `$${view.price}` : '—'}
+                      </motion.div>
                     </div>
                   </motion.div>
                 );
@@ -1424,6 +1538,13 @@ export default function Workspace() {
                   ? `vs. the highest opening quote of $${openingHigh}`
                   : 'vs. calling one clinic at random'}
               </div>
+              {/* Showing the conservative baseline too — quoting only the
+                  best-case comparison invites the obvious question. */}
+              {stage === 3 && savingsVsRandom > 0 && (
+                <div style={{ fontSize: '0.66rem', color: 'rgba(26,13,30,0.5)', lineHeight: 1.4, marginTop: '2px' }}>
+                  ${savingsVsRandom} vs. calling one clinic at random
+                </div>
+              )}
             </div>
           </div>
 

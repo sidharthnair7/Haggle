@@ -3,6 +3,7 @@ package fileidea.haggleai.negotiation;
 import fileidea.haggleai.clinic.ClinicAgent;
 import fileidea.haggleai.clinic.ClinicConfigService;
 import fileidea.haggleai.clinic.ClinicProfile;
+import fileidea.haggleai.run.JobSpec;
 import fileidea.haggleai.quote.Quote;
 import fileidea.haggleai.quote.QuoteRepository;
 import fileidea.haggleai.run.Run;
@@ -86,6 +87,36 @@ public class NegotiationOrchestrator {
                 : "Understood. If anything opens up on your end, I'd still rather book with you.";
     }
 
+    /**
+     * Five ways to ask the same question. One shared opening meant all five
+     * transcripts began with the identical paragraph, stacked down the page —
+     * which read as a template loop rather than five separate calls, at exactly
+     * the moment the parallelism is supposed to be the point.
+     *
+     * <p>Assigned by roster position, not at random, so a given clinic opens
+     * the same way every run and the demo stays rehearsable. Every variant
+     * still identifies the caller as the Haggle agent — the disclosure is the
+     * product's position, and the clinic that refuses AI callers is reacting to
+     * it.
+     */
+    private static String openingLine(int index, JobSpec spec) {
+        String what = spec.describe();
+        String a = article(what);
+        return switch (Math.floorMod(index, 5)) {
+            case 1 -> "Morning — Haggle agent here, calling on behalf of a patient. She's "
+                    + "self-pay, no insurance. What does " + a + " " + what + " run at your clinic?";
+            case 2 -> "Hi there, this is the Haggle agent. I've got a patient paying out of "
+                    + "pocket who needs " + a + " " + what + " — can you tell me what that costs?";
+            case 3 -> "Hello — Haggle agent calling. Quick one: cash-pay patient, " + what
+                    + ". What's your all-in price on that?";
+            case 4 -> "Hi, Haggle agent speaking. I'm pricing " + a + " " + what + " for a "
+                    + "patient with no coverage — what would you charge her?";
+            default -> "Hi, this is the Haggle agent calling for a patient — she's paying cash, "
+                    + "so I'm just trying to get a price on " + a + " " + what
+                    + ". What're you charging for that?";
+        };
+    }
+
     private static String article(String phrase) {
         if (phrase == null || phrase.isBlank()) {
             return "a";
@@ -140,17 +171,15 @@ public class NegotiationOrchestrator {
         runRepository.save(run);
         emit(runId, NegotiationEvent.Type.RUN_STARTED, null, 1, "Shopping started", null);
 
-        runInParallel(clinicConfigService.forRun(), clinic -> {
+        List<ClinicProfile> roster = clinicConfigService.forRun();
+        runInParallel(roster, clinic -> {
             if (run.expired()) {
                 return;
             }
             emit(runId, NegotiationEvent.Type.CLINIC_DIALED, clinic.name(), 1,
                     "Calling " + clinic.name(), null);
             sayAgent(runId, clinic.name(), 1,
-                    "Hi, this is the Haggle agent calling for a patient — she's paying "
-                            + "cash, so I'm just trying to get a price on "
-                            + article(run.getSpec().describe()) + " "
-                            + run.getSpec().describe() + ". What're you charging for that?");
+                    openingLine(roster.indexOf(clinic), run.getSpec()));
             Quote quote = clinicAgent.openingQuote(runId, clinic, run.getSpec());
             quoteRepository.save(quote);
             emit(runId, NegotiationEvent.Type.QUOTE_RECEIVED, clinic.name(), 1,
