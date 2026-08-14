@@ -6,6 +6,10 @@ Five clinic agents negotiate a cash-pay medical price in parallel, and the negot
 
 Built for CUTC: Transform, August 2026.
 
+![Live negotiation: five clinics, itemized fees, and the honesty gate's savings math](attachments/workspace.png)
+
+![Landing page](attachments/landing-page.png)
+
 ---
 
 ## The problem
