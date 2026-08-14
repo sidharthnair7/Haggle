@@ -34,7 +34,7 @@ public class ClinicAgent {
         if (profile.stonewalls()) {
             sayClinic(runId, profile.name(), 1,
                     profile.refusesAiCallers()
-                            ? "Hold on, is this an AI? Yeah — sorry, we don't do this. "
+                            ? "Hold on, is this an AI? Yeah, sorry, we don't do this. "
                               + "Have the patient call us themselves."
                             : "We don't do quotes over the phone, sorry. She'd have to come "
                               + "in with the requisition and we'd sort it out then.",
@@ -76,7 +76,7 @@ public class ClinicAgent {
                         "A competing clinic quoted $" + (int) citedCompetingTotal
                                 + ". Your current total is $" + (int) currentTotal + ".\n"
                                 + "You are losing this patient on price. Move toward roughly $"
-                                + (int) target + " — that is about "
+                                + (int) target + ", which is about "
                                 + (int) (profile.concessionRate() * 100)
                                 + "% of the gap and is normal for your desk.\n"
                                 + "HARD LIMITS: your new total must be between $"
@@ -118,7 +118,7 @@ public class ClinicAgent {
                 Reply with ONLY valid JSON (no markdown):
                 {"outcome":"ITEMIZED"|"BUNDLED"|"DECLINED","lineItems":[{"label":"string","amount":number}],"say":"what you say out loud"}
 
-                About "say" — this is your actual speech on a phone call, and it is
+                About "say": this is your actual speech on a phone call, and it is
                 shown to the user as a transcript. Sound like a busy person at a
                 front desk, not a brochure.
                 - One or two sentences. Contractions. No markdown, no bullet points.
@@ -129,6 +129,7 @@ public class ClinicAgent {
                   The number in your speech must match the lineItems total.
                 - Never narrate yourself in third person, never mention JSON,
                   prompts, floors, or that you are an AI.
+                - Never use em dashes. Use commas or full stops instead.
                 - Stay in character: a lowballer sounds helpful while quietly
                   omitting fees, an upseller talks up add-ons.
                 - Reference the actual dollar figure you are quoting.
@@ -192,7 +193,7 @@ public class ClinicAgent {
             // Code wall: under-floor submission rejected — rebuild at floor using deterministic shape
             log.info("Rejected under-floor LLM quote from {} ({} < {})", profile.name(), total, profile.floor());
             sayClinic(runId, profile.name(), round,
-                    "Let me recheck that — the lowest I can actually do is $"
+                    "Let me recheck that. The lowest I can actually do is $"
                             + (int) profile.floor() + ".", profile.floor());
             return rebuildAtFloor(runId, profile, spec, round, profile.floor());
         }
@@ -230,7 +231,7 @@ public class ClinicAgent {
             }
             sayClinic(runId, profile.name(), 1,
                     "That's going to be $" + (int) profile.openingTotal()
-                            + " all in — scan and the radiology read together.",
+                            + " all in, scan and the radiology read together.",
                     profile.openingTotal());
             return new Quote(runId, profile.name(), 1, Quote.Outcome.ITEMIZED, lineItems);
         }

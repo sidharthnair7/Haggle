@@ -683,7 +683,7 @@ export default function Workspace() {
     const watchdog = setTimeout(() => {
       if (providersRef.current.length === 0) {
         setError('The run started but no clinic reported back. The service may be '
-          + 'restarting — wait a moment and hit New Run.');
+          + 'restarting. Wait a moment and hit New Run.');
         setStarting(false);
         setBusy(false);
         setStage(1);
@@ -929,7 +929,7 @@ export default function Workspace() {
     const pdf = isPdfFile(file);
     const textFile = isTextReferral(file);
     if (!pdf && !textFile) {
-      setUploadNote({ error: true, text: `${file.name} isn't a PDF or text file — paste the order below instead.` });
+      setUploadNote({ error: true, text: `${file.name} isn't a PDF or text file. Paste the order below instead.` });
       return;
     }
     const maxBytes = pdf ? 8_000_000 : 200_000;
@@ -987,7 +987,7 @@ export default function Workspace() {
     ? `Haggle Negotiation Report\n${'─'.repeat(40)}\nProcedure: ${specValue('Procedure')} · ${specValue('Body Part')}\n\n` +
       [...providers]
         .sort((a, b) => (a.price || 9999) - (b.price || 9999))
-        .map((p, i) => `RANK ${i + 1}: ${p.name} — ${p.price ? `$${p.price}` : p.status}${p.statusType === 'warn' ? ' [FLAGGED: no breakdown]' : i === 0 ? ' ← BEST DEAL' : ''}`)
+        .map((p, i) => `RANK ${i + 1}: ${p.name} · ${p.price ? `$${p.price}` : p.status}${p.statusType === 'warn' ? ' [FLAGGED: no breakdown]' : i === 0 ? ' ← BEST DEAL' : ''}`)
         .join('\n') +
       `\n\nOpening market: $${money(snapshot?.openingLow)}–$${openingHigh}` +
       `\nSaved vs the highest opening quote: $${savings}` +
@@ -1518,7 +1518,7 @@ export default function Workspace() {
               >
                 <Shield size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
                 <div>
-                  <strong>Honesty check — {honestyBanner.allowed ? 'ALLOWED' : 'REFUSED'}</strong>
+                  <strong>Honesty check: {honestyBanner.allowed ? 'ALLOWED' : 'REFUSED'}</strong>
                   <div style={{ marginTop: '3px', color: 'rgba(26,13,30,0.7)' }}>{honestyBanner.demoNote}</div>
                 </div>
               </motion.div>
@@ -1662,7 +1662,7 @@ export default function Workspace() {
                         {p.statusType === 'warn' && <AlertTriangle size={12} color="var(--accent-rose)" />}
                         <div>
                           <div style={{ fontSize: '0.72rem', color: i === 0 ? '#10b981' : p.statusType === 'warn' ? '#f43f5e' : 'rgba(26,13,30,0.3)', fontWeight: 700 }}>
-                            RANK {i + 1} {i === 0 ? '— BEST DEAL' : p.statusType === 'warn' ? '— FLAGGED' : ''}
+                            RANK {i + 1} {i === 0 ? '· BEST DEAL' : p.statusType === 'warn' ? '· FLAGGED' : ''}
                           </div>
                           <div style={{ fontWeight: 600, fontSize: '0.84rem', color: 'rgba(26,13,30,0.75)' }}>{p.name}</div>
                         </div>

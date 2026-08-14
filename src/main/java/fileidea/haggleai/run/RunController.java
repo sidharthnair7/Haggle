@@ -226,7 +226,7 @@ public class RunController {
 
         LeverageGate.Result result = leverageGate.verify(id, against, claimed);
         String detail = (result.allowed() ? "Honesty demo ALLOWED: " : "Honesty demo REFUSED: ")
-                + "agent tried to cite $" + claimed + " against " + against + " — " + result.reason();
+                + "agent tried to cite $" + claimed + " against " + against + ". " + result.reason();
 
         negotiationEventRepository.save(new NegotiationEvent(
                 id,
@@ -262,9 +262,9 @@ public class RunController {
                 claimed,
                 against,
                 result.allowed()
-                        ? "Allowed — this figure is a real itemized quote in the provenance store, "
+                        ? "Allowed. This figure is a real itemized quote in the provenance store, "
                           + "so the agent may cite it."
-                        : "Refused — this figure is not in the provenance store, so the agent cannot "
+                        : "Refused. This figure is not in the provenance store, so the agent cannot "
                           + "cite it. Bluffing is blocked by the tool boundary, not by a prompt."
         );
     }

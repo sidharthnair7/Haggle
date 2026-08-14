@@ -148,9 +148,9 @@ const AGENT_LINES = [
   { text: '  Queen Street Diag.     $575   ← $195 in fees revealed', color: '#e11d48', delay: 8 },
   { text: '', delay: 9 },
   { text: '» Round 2 · citing verified competing quotes', color: 'rgba(0,0,0,0.5)', delay: 9 },
-  { text: '  Agent  → "Danforth Medical quoted me $460 — can you get closer to that?"', color: 'var(--accent-indigo)', delay: 10 },
+  { text: '  Agent  → "Danforth Medical quoted me $460. Can you get closer to that?"', color: 'var(--accent-indigo)', delay: 10 },
   { text: '  Clinic → "Uh, let me see... I can get you a total of $481."', color: 'rgba(0,0,0,0.7)', delay: 11 },
-  { text: '  ✗ REFUSED  agent tried to cite $200 — not in the quote store', color: '#e11d48', delay: 12 },
+  { text: '  ✗ REFUSED  agent tried to cite $200, not in the quote store', color: '#e11d48', delay: 12 },
   { text: '', delay: 13 },
   { text: '══ RANKED REPORT ═══════════════════════════════════', color: '#4f46e5', delay: 14 },
   { text: '  RANK 1  Danforth Medical Imaging     $460   ← BEST DEAL', color: '#059669', delay: 14 },
@@ -228,7 +228,7 @@ const PIPELINE_STEPS = [
     num: '01',
     label: 'Parse',
     title: 'Spec Extraction',
-    desc: 'Upload a doctor\'s order PDF or type the procedure. The agent parses it into a frozen negotiation spec — procedure, modality, facility type, and contrast requirements.',
+    desc: 'Upload a doctor\'s order PDF or type the procedure. The agent parses it into a frozen negotiation spec: procedure, modality, facility type, and contrast requirements.',
     color: '#6366f1',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -241,7 +241,7 @@ const PIPELINE_STEPS = [
     num: '02',
     label: 'Query',
     title: 'Provider Sweep',
-    desc: 'Every clinic is worked at once on its own thread. Queen Street Diagnostics quotes $380 — until we ask for the breakdown and $195 in fees appear.',
+    desc: 'Every clinic is worked at once on its own thread. Queen Street Diagnostics quotes $380. Then we ask for the breakdown and $195 in fees appear.',
     color: '#0ea5e9',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -253,7 +253,7 @@ const PIPELINE_STEPS = [
     num: '03',
     label: 'Haggle',
     title: 'Autonomous Negotiation',
-    desc: 'The agent calls back citing verified competing quotes. It cannot invent a figure — every price it names is checked against the quote store first, or refused.',
+    desc: 'The agent calls back citing verified competing quotes. It cannot invent a figure. Every price it names is checked against the quote store first, or refused.',
     color: '#8b5cf6',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -813,7 +813,7 @@ export default function LandingPage() {
               fontFamily: 'var(--font-mono)', marginBottom: '40px',
             }}
           >
-            The five desks are simulated. Quotes, itemization, and the honesty gate are real.
+            Quotes, itemization, and the honesty gate are real. The five clinic desks are simulated.
           </motion.p>
 
           <motion.div
@@ -874,7 +874,7 @@ export default function LandingPage() {
                 marginLeft: '8px', fontFamily: 'var(--font-mono)', fontSize: '0.72rem',
                 color: 'rgba(0,0,0,0.45)', letterSpacing: '0.05em',
               }}>
-                haggle — agent runtime v0.1.0
+                haggle · agent runtime v0.1.0
               </span>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
                 {!terminalRunning && (
@@ -958,7 +958,7 @@ export default function LandingPage() {
                 </LineReveal>
               </h2>
               <p style={{ color: 'rgba(0,0,0,0.6)', fontSize: '0.95rem', lineHeight: 1.7, maxWidth: '380px' }}>
-                This is the actual product flow. Edit the doctor's order, watch the agent call providers, and see the ranked results — all right here.
+                This is the actual product flow. Edit the doctor's order, watch the agent call providers, and see the ranked results, all right here.
               </p>
               <div style={{ marginTop: '28px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {['Parse any doctor\'s order in seconds', 'Every clinic worked in parallel', 'Negotiation with gate-verified leverage', 'Full call transcript, every time'].map((item, i) => (

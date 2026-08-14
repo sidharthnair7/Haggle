@@ -72,9 +72,9 @@ public class NegotiationOrchestrator {
      */
     private static String closingRound1(Quote quote) {
         return switch (quote.getOutcome()) {
-            case DECLINED -> "No worries — thanks for your time.";
+            case DECLINED -> "No worries, thanks for your time.";
             case BUNDLED -> null;
-            case ITEMIZED -> "$" + (int) quote.total() + " — got it, thanks. I'm checking a "
+            case ITEMIZED -> "$" + (int) quote.total() + ", got it, thanks. I'm checking a "
                     + "few other places.";
         };
     }
@@ -82,7 +82,7 @@ public class NegotiationOrchestrator {
     /** And what it says after a clinic either moves or holds on a callback. */
     private static String closingCallback(boolean moved, double newTotal) {
         return moved
-                ? "$" + (int) newTotal + " — appreciate you looking. I'll come back to you "
+                ? "$" + (int) newTotal + ", appreciate you looking. I'll come back to you "
                     + "once I've heard from the rest."
                 : "Understood. If anything opens up on your end, I'd still rather book with you.";
     }
@@ -103,15 +103,15 @@ public class NegotiationOrchestrator {
         String what = spec.describe();
         String a = article(what);
         return switch (Math.floorMod(index, 5)) {
-            case 1 -> "Morning — Haggle agent here, calling on behalf of a patient. She's "
+            case 1 -> "Morning, Haggle agent here, calling on behalf of a patient. She's "
                     + "self-pay, no insurance. What does " + a + " " + what + " run at your clinic?";
             case 2 -> "Hi there, this is the Haggle agent. I've got a patient paying out of "
-                    + "pocket who needs " + a + " " + what + " — can you tell me what that costs?";
-            case 3 -> "Hello — Haggle agent calling. Quick one: cash-pay patient, " + what
+                    + "pocket who needs " + a + " " + what + ". Can you tell me what that costs?";
+            case 3 -> "Hello, Haggle agent calling. Quick one: cash-pay patient, " + what
                     + ". What's your all-in price on that?";
             case 4 -> "Hi, Haggle agent speaking. I'm pricing " + a + " " + what + " for a "
-                    + "patient with no coverage — what would you charge her?";
-            default -> "Hi, this is the Haggle agent calling for a patient — she's paying cash, "
+                    + "patient with no coverage. What would you charge her?";
+            default -> "Hi, this is the Haggle agent calling for a patient. She's paying cash, "
                     + "so I'm just trying to get a price on " + a + " " + what
                     + ". What're you charging for that?";
         };
@@ -242,7 +242,7 @@ public class NegotiationOrchestrator {
             emit(runId, NegotiationEvent.Type.PRESSED_FOR_ITEMIZATION, entry.getKey(), 1,
                     "Pressed for itemization", latest.total());
             sayAgent(runId, entry.getKey(), 1,
-                    "Before we go further — can you break that down for me? "
+                    "Before we go further, can you break that down for me? "
                             + "Is there a facility fee or a read fee on top of that?");
             Quote itemized = clinicAgent.pressForItemization(runId, profile.get(), run.getSpec());
             quoteRepository.save(itemized);
@@ -335,7 +335,7 @@ public class NegotiationOrchestrator {
         run.setCompletedAt(Instant.now());
         runRepository.save(run);
         emit(run.getId(), NegotiationEvent.Type.RUN_COMPLETE, null, run.getRound(),
-                ok ? "Run complete" : "Run failed — no citable quotes", null);
+                ok ? "Run complete" : "Run failed, no citable quotes", null);
     }
 
     private void finishPartialOrFailed(Run run) {
@@ -346,7 +346,7 @@ public class NegotiationOrchestrator {
         run.setCompletedAt(Instant.now());
         runRepository.save(run);
         emit(run.getId(), NegotiationEvent.Type.RUN_COMPLETE, null, run.getRound(),
-                ok ? "Partial result — deadline expired" : "Run failed — no citable quotes", null);
+                ok ? "Partial result, deadline expired" : "Run failed, no citable quotes", null);
     }
 
     private boolean hasCitable(UUID runId) {

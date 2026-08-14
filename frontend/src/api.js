@@ -23,7 +23,7 @@ async function json(path, { timeoutMs = DEFAULT_TIMEOUT_MS, ...options } = {}) {
     if (e.name === 'AbortError') {
       throw new Error(
         `The negotiation service didn't respond within ${Math.round(timeoutMs / 1000)}s. `
-        + 'It may still be starting up — give it a moment and try again.'
+        + 'It may still be starting up. Give it a moment and try again.'
       );
     }
     throw new Error('Could not reach the negotiation service.');
