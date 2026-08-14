@@ -795,7 +795,7 @@ export default function LandingPage() {
               textAlign: 'center', marginBottom: '12px',
             }}
           >
-            Say what scan you need. A negotiator agent works every clinic at once, plays their quotes against each other, and comes back with the lowest itemized cash price — and it can't cite a figure no clinic actually gave.
+            Paying cash for a scan in Ontario? There's no price list, and the first number is rarely the real one. Drop the doctor's order and five clinics get called at once. The agent cannot cite a figure no clinic actually gave.
           </motion.p>
 
           <motion.p
