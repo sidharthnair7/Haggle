@@ -619,6 +619,13 @@ export default function Workspace() {
   const [shownByClinic, setShownByClinic] = useState({});
   const providersRef = useRef([]);
 
+  // Clicking Confirm doesn't reach doStart() for 1600ms when the order still
+  // needs parsing, and the first clinic then costs another ~2s of model round
+  // trip. For that whole window stage was still 1, so the live column reported
+  // "PENDING / Idle" while five agents were in fact being dialled. This flips
+  // the moment the button is pressed.
+  const [starting, setStarting] = useState(false);
+
   // Set once per run, so re-polls after completion can't keep yanking the card
   // back open after the user has closed it or opened a different one.
   const autoExpandedRef = useRef(false);
@@ -676,6 +683,7 @@ export default function Workspace() {
     const next = buildProviders(snap, winnerName);
     providersRef.current = next;
     setProviders(next);
+    if (next.length > 0) setStarting(false);
     setLogs(buildLogs(snap));
     setRedFlag(buildRedFlag(snap));
 
@@ -779,6 +787,7 @@ export default function Workspace() {
     // while the parse animation is still running schedules doStart() twice, and
     // the second call clears the first run's timers and state mid-flight.
     if (busy || stage > 1) return;
+    setStarting(true);
     if (!parseDone) {
       if (!isParsing) handleParseOrder();
       addTimeout(() => doStart(), 1600);
@@ -829,6 +838,7 @@ export default function Workspace() {
     } catch (e) {
       setError(e.message || 'Could not reach the negotiation service.');
       setBusy(false);
+      setStarting(false);
       setStage(1);
     }
   };
@@ -870,6 +880,7 @@ export default function Workspace() {
     setShownByClinic({});
     providersRef.current = [];
     autoExpandedRef.current = false;
+    setStarting(false);
     setActiveFocus(null);
     setParseDone(false);
     setIsParsing(false);
@@ -1230,13 +1241,13 @@ export default function Workspace() {
               <div style={{ fontSize: '0.62rem', color: 'var(--accent-indigo)', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '3px' }}>Stage 2</div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, color: '#1a0d1e' }}>Live Agent Negotiations</h2>
             </div>
-            {stage === 2 && (
+            {(stage === 2 || starting) && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', color: 'var(--accent-emerald)', fontWeight: 600 }}>
                 <div className="status-dot pulse" /> LIVE
               </motion.div>
             )}
-            {stage !== 2 && (
+            {stage !== 2 && !starting && (
               <span style={{ padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: '0.66rem', fontWeight: 600, letterSpacing: '0.06em', background: stage > 2 ? 'rgba(166,139,196,0.12)' : 'rgba(26,13,30,0.06)', color: stage > 2 ? 'var(--accent-indigo)' : 'rgba(26,13,30,0.25)', border: `1px solid ${stage > 2 ? 'rgba(166,139,196,0.25)' : 'rgba(26,13,30,0.07)'}` }}>
                 {stage > 2 ? 'COMPLETE' : 'PENDING'}
               </span>
@@ -1299,6 +1310,36 @@ export default function Workspace() {
 
           {/* Provider Negotiation Cards */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '9px', overflowY: 'auto' }}>
+            {/* Five placeholders while the first quotes are still in flight.
+                Deliberately unnamed: the clinic roster comes from clinics.yaml
+                and the frontend shouldn't pretend to know it before the backend
+                says so. Five of them is the honest part, and it puts the
+                concurrency on screen from the first frame. */}
+            {starting && providers.length === 0 && [0, 1, 2, 3, 4].map(i => (
+              <motion.div key={`dialling-${i}`}
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: i * 0.07 }}
+                style={{
+                  padding: '13px 14px', background: 'rgba(26,13,30,0.02)',
+                  border: '1px solid rgba(26,13,30,0.06)', borderRadius: 'var(--radius-md)',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="status-dot pulse" style={{ animationDelay: `${i * 0.18}s` }} />
+                  <div style={{
+                    width: `${108 + (i % 3) * 26}px`, height: '9px', borderRadius: '5px',
+                    background: 'rgba(26,13,30,0.07)',
+                  }} />
+                </div>
+                <span style={{
+                  fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.06em',
+                  color: 'rgba(26,13,30,0.3)', fontFamily: 'var(--font-mono)',
+                }}>
+                  DIALLING…
+                </span>
+              </motion.div>
+            ))}
             <AnimatePresence>
               {stage >= 2 && providers.map(p => {
                 const live = liveByClinic[p.name];
@@ -1467,7 +1508,8 @@ export default function Workspace() {
               <PlayCircle size={13} color="var(--accent-indigo)" />
               {stage === 2
                 ? (snapshot?.status || 'Autonomous negotiation running…')
-                : stage === 3 ? `Run #${runIndex + 1} complete` : 'Idle'}
+                : stage === 3 ? `Run #${runIndex + 1} complete`
+                : starting ? 'Reading the order, dialling five clinics…' : 'Idle'}
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               {stage === 2 && (
