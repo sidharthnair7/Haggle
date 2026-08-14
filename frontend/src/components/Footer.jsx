@@ -89,6 +89,35 @@ export default function Footer() {
 
             <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.2)' }} />
 
+            {/* Names point at LinkedIn, not GitHub — the repo link above already
+                covers the code, and someone clicking a name is usually looking
+                for the person. Basu designed and built the frontend this is all
+                shown through, so his name belongs here. */}
+            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
+              Built by{' '}
+              <a
+                href="https://www.linkedin.com/in/sidharthnair7/"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'rgba(255,255,255,0.6)', textDecoration: 'none', transition: 'color 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
+              >
+                Sidharth Nair
+              </a>
+              {' '}and{' '}
+              <a
+                href="https://www.linkedin.com/in/basudev-biju/"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'rgba(255,255,255,0.6)', textDecoration: 'none', transition: 'color 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
+              >
+                Basudev Biju
+              </a>
+            </span>
+
             <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
             <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
               © 2026
