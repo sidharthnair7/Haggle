@@ -18,6 +18,12 @@ Ontario covers medically necessary MRIs under OHIP. If you're covered, you wait.
 
 An agent that calls all of them is the obvious fix. The non-obvious problem is that the most effective negotiating agent is a lying one. "Danforth quoted me $200" works great until it isn't true.
 
+## How a request flows through it
+
+![Request flow: RunController to the orchestrator's three phases to the leverage gate to a ranked result](attachments/architecture.svg)
+
+`POST /api/runs` returns immediately: the actual negotiation runs on a virtual thread, and the client follows along over SSE. The orchestrator runs three phases in order (shop, itemize the bundled quotes, negotiate), and every leverage attempt in the third phase passes through the gate before it can become a citation.
+
 ## What it does
 
 Paste a doctor's order or drop the referral PDF. Haggle parses it into a spec, calls five clinics concurrently, plays their real quotes against each other over up to three rounds, presses bundled quotes for itemization, and returns a ranked list of itemized cash prices with an audit trail.
