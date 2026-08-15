@@ -3,6 +3,7 @@
 Five clinic agents negotiate a cash-pay medical price in parallel, and the negotiating agent is structurally incapable of citing a price nobody quoted.
 
 **Live:** https://haggle-ai-eight.vercel.app
+**Demo Video:** https://youtu.be/EC1-bb7Be_g
 
 Built for CUTC: Transform, August 2026.
 
