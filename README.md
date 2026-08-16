@@ -159,3 +159,7 @@ Nothing in the orchestrator knows it's negotiating for medical imaging. Swapping
 
 Backend, agents, orchestration, and the honesty gate by [Sidharth Nair](https://github.com/sidharthnair7).
 Frontend design by [Basudev Biju](https://github.com/basudevbiju).
+
+## License
+
+[MIT](LICENSE)
